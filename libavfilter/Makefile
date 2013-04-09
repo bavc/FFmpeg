@@ -171,6 +171,7 @@ OBJS-$(CONFIG_UNSHARP_FILTER)                += vf_unsharp.o
 OBJS-$(CONFIG_VFLIP_FILTER)                  += vf_vflip.o
 OBJS-$(CONFIG_YADIF_FILTER)                  += vf_yadif.o
 OBJS-$(CONFIG_WATERMARK_FILTER)              += vf_watermark.o
+OBJS-$(CONFIG_BROADCAST_FILTER)		     += vf_broadcast.o
 
 
 OBJS-$(CONFIG_CELLAUTO_FILTER)               += vsrc_cellauto.o
