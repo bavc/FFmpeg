@@ -222,11 +222,11 @@ static int query_formats(AVFilterContext *ctx)
         PIX_FMT_NONE
     };
 
-	av_log(ctx, AV_LOG_DEBUG, "query_formats().\n");
+	av_log(ctx, AV_LOG_DEBUG, ">>> query_formats().\n");
 
     ff_set_common_formats(ctx, ff_make_format_list(pix_fmts));
 
-	av_log(ctx, AV_LOG_DEBUG, "query_formats(). exit\n");
+	av_log(ctx, AV_LOG_DEBUG, "<<< query_formats().\n");
     return 0;
 }
 
@@ -256,6 +256,10 @@ static int config_props(AVFilterLink *outlink)
 	uint8_t *maskData;
 	uint8_t *tempData;
 	
+    av_log(ctx, AV_LOG_DEBUG, ">>> config_props().\n");
+
+    
+    
 	// make sure Chroma planes align.
 	avcodec_get_chroma_sub_sample(outlink->format, &ovl->hsub, &ovl->vsub);
 	
@@ -265,6 +269,10 @@ static int config_props(AVFilterLink *outlink)
 			av_log(ctx, AV_LOG_ERROR, "Cannot use this position with this chroma subsampling. Chroma plane will not align. (continuing with unaligned chroma planes, your watermark may look distorted)\n");
 	}
 
+    av_log(ctx, AV_LOG_DEBUG, "    config_props() avformat_open_input(%s).\n",ovl->imageName);
+
+    pFormatCtx = avformat_alloc_context();
+    
 	// open overlay image 
 	// avformat_open_input
 	if(avformat_open_input(&pFormatCtx, ovl->imageName, avif, NULL)!=0) {
@@ -273,12 +281,18 @@ static int config_props(AVFilterLink *outlink)
 		
 	}
 	
+    av_log(ctx, AV_LOG_DEBUG, "    config_props() avformat_find_stream_info.\n");
+
+    
 	if(avformat_find_stream_info(pFormatCtx,NULL)<0) {
 		av_log(ctx, AV_LOG_FATAL, "Cannot find stream in overlay image.\n");
 		return -1;
 		
 	}
 	
+    av_log(ctx, AV_LOG_DEBUG, "    config_props() pFormatCtx->streams.\n");
+
+    
 	for(int i=0; i<pFormatCtx->nb_streams; i++)
 		if(pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_VIDEO) {
 			avStream=i;
@@ -290,6 +304,8 @@ static int config_props(AVFilterLink *outlink)
 		return -1;
 	}
 	
+    av_log(ctx, AV_LOG_DEBUG, "    config_props() avcodec_find_decoder.\n");
+
 	
 	pCodecCtx=pFormatCtx->streams[avStream]->codec;
 	
@@ -302,6 +318,9 @@ static int config_props(AVFilterLink *outlink)
 		
 	}
 	
+    av_log(ctx, AV_LOG_DEBUG, "    config_props() avcodec_open2.\n");
+
+    
 	// Open codec
 	if(avcodec_open2(pCodecCtx, pCodec,NULL)<0) {
 		av_log(ctx, AV_LOG_FATAL,"could not open codec for overlay image\n");
@@ -320,6 +339,9 @@ static int config_props(AVFilterLink *outlink)
 		
 	}
 	
+    av_log(ctx, AV_LOG_DEBUG, "    config_props() avcodec_alloc_frame.\n");
+
+    
 	overlay = avcodec_alloc_frame();
 	
 	// read overlay file into overlay AVFrame
@@ -422,6 +444,9 @@ static int config_props(AVFilterLink *outlink)
     // Close the video file
     avformat_close_input(&pFormatCtx);
 	
+    av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
+
+    
     return 0;
 	
 	
