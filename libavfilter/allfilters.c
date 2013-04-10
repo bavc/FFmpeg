@@ -167,6 +167,7 @@ void avfilter_register_all(void)
     REGISTER_FILTER(YADIF,          yadif,          vf);
     REGISTER_FILTER(WATERMARK,      watermark,      vf);
     REGISTER_FILTER(BROADCAST,      broadcast,      vf);
+    REGISTER_FILTER(VALUES,         values,         vf);
 
 
     REGISTER_FILTER(CELLAUTO,       cellauto,       vsrc);
