@@ -39,8 +39,13 @@
 
 /* time
  10 April 06:58 - 07:38
- 
+ 15 April 16:15 - 16:50
+ 16 April 07:10 - 7:40
  */
+
+static const char *const filter_names[] = { "tout", NULL };
+enum FilterMode { FILTER_NONE = -1, FILTER_TOUT, FILT_NUMB };
+
 
 typedef struct
 {
@@ -57,15 +62,22 @@ typedef struct
     int fs;
     int cfs;
     
+    enum FilterMode outfilter;
+    int filter[FILT_NUMB];
+    
 } valuesContext;
 
 
-
 #define OFFSET(x) offsetof(valuesContext, x)
+#define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
+
 
 static const AVOption values_options[]= {
     {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {"f", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
+    {"out", "set filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=0}, 0, FILT_NUMB-1,FLAGS,"out"},
+    {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
+    {"tout", "outlier statistics", OFFSET(filter[FILTER_TOUT]), AV_OPT_TYPE_INT, {.i64=1}, 1,1, FLAGS}
     {NULL}
 };
 
@@ -211,7 +223,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 	int toty=0,totu=0,totv=0;
 	int maxy,maxu,maxv;
 
-    int fil=0;
+    int filtot[FILT_NUMB];
+    
+    for (i=0; i<FILT_NUMB; i++)
+        filtot[i]=0;
     
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     av_frame_copy_props(out, in);
@@ -257,11 +272,16 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             // options to disable and enable them
             // option to pick one for video out
             
-            if(filter_tout(in,i,j,link->w,link->h))
-            {
-                fil ++;
-                out->data[0][ow+i] = 235;
+            if (values->outfilter == FILTER_TOUT || values->filter[FILTER_TOUT]) {
+                if(filter_tout(in,i,j,link->w,link->h))
+                {
+                    if (values->filter_tout) // want this enabled automatically if out filter is set
+                        filtot[FILTER_TOUT] ++;
+                    if (values->outfilter == FILTER_TOUT)
+                        out->data[0][ow+i] = 235;
+                }
             }
+            
             
         }
         
