@@ -149,6 +149,51 @@ static int config_props(AVFilterLink *outlink)
 	
 }
 
+
+int tout_outlier(uint8_t x, uint8_t y, uint8_t z)
+{
+	
+	int dif;
+	
+	dif =  ((abs(x - y) + abs (z - y) ) / 2) - abs(z-x);
+	
+	//fprintf(stderr,"dif: %d %d\n",dif2,dif1);
+	
+	// Will make this configurable by command line option.
+	return dif>4?1:0;
+	
+}
+
+
+static int filter_tout(AVFrame *p, int i, int j, int w, int h) {
+	
+	int lw = p->linesize[0];
+    
+	if ((i-1 < 0) || (i+1 > w) || (j-1 < 0) || (j+1 >= h)) {
+		return 0;
+	} else {
+		int x;
+        
+        
+		for (x=-1; x<2; x++)
+		{
+			// detect two pixels above and below (to eliminate interlace artefacts)
+			if ((j-2 >=0) && (j+2 < h)) {
+				if (!tout_outlier(p->data[0][(j-2) * lw + i+x], p->data[0][j * lw + i+x], p->data[0][(j+2) * lw + i+x]))
+					return 0;
+			}
+			
+			if (!tout_outlier(p->data[0][(j-1) * lw + i+x], p->data[0][j * lw + i+x], p->data[0][(j+1) * lw + i+x]))
+				return 0;
+			
+		}
+	}
+	return 1;
+	
+}
+
+
+
 // static void draw_slice(AVFilterLink *link, int y, int h, int slice_dir)
 static int filter_frame(AVFilterLink *link, AVFrame *in)
 {
@@ -158,7 +203,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     AVFrame *out; // = link->dst->outputs[0]->outpic;
     
 	int i,j;
-	int cw,w;
+	int cw =0 ,w=0,ow=0,cow=0;
     int yuv;
     
     
@@ -166,6 +211,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 	int toty=0,totu=0,totv=0;
 	int maxy,maxu,maxv;
 
+    int fil=0;
     
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     av_frame_copy_props(out, in);
@@ -179,7 +225,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 	minv = in->data[2][0];
 	maxv = in->data[2][0];
 
-    cw = 0; w = 0;
     for (j=0; j<link->h; j++) {
         for (i=0;i<link->w;i++) {
            
@@ -189,6 +234,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 			if (yuv < miny) miny=yuv;
 			toty += yuv;
 
+            out->data[0][ow+i] = 16;
+
+            
             if (i<values->chromaw && j<values->chromah) {
 				yuv = in->data[1][cw+i];
 				if (yuv > maxu) maxu=yuv;
@@ -199,17 +247,30 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 				if (yuv > maxv) maxv=yuv;
 				if (yuv < minv) minv=yuv;
 				totv += yuv;
-			}
 
+                out->data[1][cow+i] = 128;
+                out->data[2][cow+i] = 128;
+                
+			}
+            
+            // magic filter
+            // options to disable and enable them
+            // option to pick one for video out
+            
+            if(filter_tout(in,i,j,link->w,link->h))
+            {
+                fil ++;
+                out->data[0][ow+i] = 235;
+            }
             
         }
         
+        cow += out->linesize[1];
+        ow += out->linesize[0];
         w += in->linesize[0];
         cw += in->linesize[1];
 	}
 	
-    // should I copy the frame to the output?
-    
     fprintf(values->fh,"%d %d %g %d %d %g %d %d %g %d\n",values->fc,
             miny,1.0 * toty / values->fs, maxy,
             minu,1.0 * totu / values->cfs, maxu,
