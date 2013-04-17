@@ -44,7 +44,21 @@
  */
 
 static const char *const filter_names[] = { "tout", NULL };
-enum FilterMode { FILTER_NONE = -1, FILTER_TOUT, FILT_NUMB };
+
+enum FilterMode {
+    FILTER_NONE = -1,
+    FILTER_TOUT,
+    FILT_NUMB
+};
+
+/* Prototypes for filter functions */
+
+static int filter_tout(AVFrame *p, int x, int y, int w, int h);
+
+
+static int (*filter_call[FILT_NUMB])(AVFrame *p, int x, int y, int w, int h) = {
+    filter_tout
+};
 
 
 typedef struct
@@ -71,13 +85,17 @@ typedef struct
 #define OFFSET(x) offsetof(valuesContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 
+int tout_outlier(uint8_t x, uint8_t y, uint8_t z);
+
+
 
 static const AVOption values_options[]= {
+    {"tout", "outlier statistics", OFFSET(filter[FILTER_TOUT]), AV_OPT_TYPE_CONST, {FILTER_TOUT}, FILTER_TOUT,FILTER_TOUT},
     {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {"f", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
-    {"out", "set filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=0}, 0, FILT_NUMB-1,FLAGS,"out"},
+    {"out", "set filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
     {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
-    {"tout", "outlier statistics", OFFSET(filter[FILTER_TOUT]), AV_OPT_TYPE_INT, {.i64=1}, 1,1, FLAGS}
+    
     {NULL}
 };
 
@@ -96,6 +114,8 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
 
     av_opt_set_defaults(values);
 
+    
+    
     av_log(ctx, AV_LOG_DEBUG, "    init() av_set_options_string.\n");
 
     
@@ -103,7 +123,7 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
         return ret;
 
     values->fc = 0;
-    values->fh = stdout;
+    values->fh = NULL;
     
     if (values->filename != NULL)
     {
@@ -145,6 +165,9 @@ static int config_props(AVFilterLink *outlink)
 
     int hsub, vsub;
     
+    av_log(ctx, AV_LOG_DEBUG, ">>> config_props().\n");
+
+    
 	avcodec_get_chroma_sub_sample(outlink->format, &hsub, &vsub);
 	
 	outlink->w = inlink->w;
@@ -157,6 +180,8 @@ static int config_props(AVFilterLink *outlink)
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
     
+    av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
+
 	return 0;
 	
 }
@@ -177,25 +202,25 @@ int tout_outlier(uint8_t x, uint8_t y, uint8_t z)
 }
 
 
-static int filter_tout(AVFrame *p, int i, int j, int w, int h) {
+static int filter_tout(AVFrame *p, int x, int y, int w, int h) {
 	
 	int lw = p->linesize[0];
     
-	if ((i-1 < 0) || (i+1 > w) || (j-1 < 0) || (j+1 >= h)) {
+	if ((x-1 < 0) || (x+1 > w) || (y-1 < 0) || (y+1 >= h)) {
 		return 0;
 	} else {
-		int x;
+		int i;
         
         
-		for (x=-1; x<2; x++)
+		for (i=-1; i<2; i++)
 		{
 			// detect two pixels above and below (to eliminate interlace artefacts)
-			if ((j-2 >=0) && (j+2 < h)) {
-				if (!tout_outlier(p->data[0][(j-2) * lw + i+x], p->data[0][j * lw + i+x], p->data[0][(j+2) * lw + i+x]))
+			if ((y-2 >=0) && (y+2 < h)) {
+				if (!tout_outlier(p->data[0][(y-2) * lw + i+x], p->data[0][y * lw + i+x], p->data[0][(y+2) * lw + i+x]))
 					return 0;
 			}
 			
-			if (!tout_outlier(p->data[0][(j-1) * lw + i+x], p->data[0][j * lw + i+x], p->data[0][(j+1) * lw + i+x]))
+			if (!tout_outlier(p->data[0][(y-1) * lw + i+x], p->data[0][y * lw + i+x], p->data[0][(y+1) * lw + i+x]))
 				return 0;
 			
 		}
@@ -217,7 +242,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 	int i,j;
 	int cw =0 ,w=0,ow=0,cow=0;
     int yuv;
-    
+    int fil;
+    char metabuf[128];
+
     
 	int miny,minu,minv;
 	int toty=0,totu=0,totv=0;
@@ -272,16 +299,33 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             // options to disable and enable them
             // option to pick one for video out
             
+            
+            for (fil = 0; fil < FILT_NUMB; fil ++) {
+                if (filter_call[fil](in,i,j,link->w,link->h)) {
+                    if (values->outfilter == fil || values->filter[fil])
+                    {
+                        values->filter[fil]=1;
+                        filtot[fil] ++;
+                        if (values->outfilter == fil)
+                        {
+                            out->data[0][ow+i] = 235;
+                        }
+                            }
+                }
+            }
+
+            /*
             if (values->outfilter == FILTER_TOUT || values->filter[FILTER_TOUT]) {
                 if(filter_tout(in,i,j,link->w,link->h))
                 {
-                    if (values->filter_tout) // want this enabled automatically if out filter is set
+                    
+                    if (values->filter[FILTER_TOUT]) // want this enabled automatically if out filter is set
                         filtot[FILTER_TOUT] ++;
                     if (values->outfilter == FILTER_TOUT)
                         out->data[0][ow+i] = 235;
                 }
             }
-            
+            */
             
         }
         
@@ -291,10 +335,29 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         cw += in->linesize[1];
 	}
 	
-    fprintf(values->fh,"%d %d %g %d %d %g %d %d %g %d\n",values->fc,
-            miny,1.0 * toty / values->fs, maxy,
-            minu,1.0 * totu / values->cfs, maxu,
-            minv,1.0 * totv / values->cfs, maxv);
+    
+    snprintf(metabuf,sizeof(metabuf),"%d",miny);
+    av_dict_set(&in->metadata,"lavfi.values.YMIN",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * toty / values->fs);
+    av_dict_set(&in->metadata,"lavfi.values.YAVG",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%d",maxy);
+    av_dict_set(&in->metadata,"lavfi.values.YMAX",metabuf,0);
+
+    
+    if (values->fh != NULL) {
+        fprintf(values->fh,"%d %d %g %d %d %g %d %d %g %d",values->fc,
+                miny,1.0 * toty / values->fs, maxy,
+                minu,1.0 * totu / values->cfs, maxu,
+                minv,1.0 * totv / values->cfs, maxv);
+    
+        for (fil = 0; fil < FILT_NUMB; fil ++) {
+            fprintf (values->fh," %g",1.0 * filtot[fil] / values->fs);
+        }
+    
+        fprintf(values->fh,"\n");
+    }
     
     values->fc++;
 	av_frame_free(&in);
