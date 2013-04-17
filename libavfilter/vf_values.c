@@ -337,31 +337,31 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 	
     
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
-    av_dict_set(&in->metadata,"lavfi.values.YMIN",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * toty / values->fs);
-    av_dict_set(&in->metadata,"lavfi.values.YAVG",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.YAVG",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%d",maxy);
-    av_dict_set(&in->metadata,"lavfi.values.YMAX",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.YMAX",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%d",minu);
-    av_dict_set(&in->metadata,"lavfi.values.UMIN",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.UMIN",metabuf,0);
     
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totu / values->cfs);
-    av_dict_set(&in->metadata,"lavfi.values.UAVG",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.UAVG",metabuf,0);
     
     snprintf(metabuf,sizeof(metabuf),"%d",maxu);
-    av_dict_set(&in->metadata,"lavfi.values.UMAX",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.UMAX",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%d",minv);
-    av_dict_set(&in->metadata,"lavfi.values.VMIN",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.VMIN",metabuf,0);
     
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totv / values->cfs);
-    av_dict_set(&in->metadata,"lavfi.values.VAVG",metabuf,0);
+    av_dict_set(&out->metadata,"lavfi.values.VAVG",metabuf,0);
     
-    snprintf(metabuf,sizeof(metabuf),"%d",maxc);
-    av_dict_set(&in->metadata,"lavfi.values.VMAX",metabuf,0);
+    snprintf(metabuf,sizeof(metabuf),"%d",maxv);
+    av_dict_set(&out->metadata,"lavfi.values.VMAX",metabuf,0);
 
     
     
