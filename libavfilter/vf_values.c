@@ -310,7 +310,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                         {
                             out->data[0][ow+i] = 235;
                         }
-                            }
+                    }
                 }
             }
 
@@ -345,6 +345,25 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     snprintf(metabuf,sizeof(metabuf),"%d",maxy);
     av_dict_set(&in->metadata,"lavfi.values.YMAX",metabuf,0);
 
+    snprintf(metabuf,sizeof(metabuf),"%d",minu);
+    av_dict_set(&in->metadata,"lavfi.values.UMIN",metabuf,0);
+    
+    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totu / values->cfs);
+    av_dict_set(&in->metadata,"lavfi.values.UAVG",metabuf,0);
+    
+    snprintf(metabuf,sizeof(metabuf),"%d",maxu);
+    av_dict_set(&in->metadata,"lavfi.values.UMAX",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%d",minv);
+    av_dict_set(&in->metadata,"lavfi.values.VMIN",metabuf,0);
+    
+    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totv / values->cfs);
+    av_dict_set(&in->metadata,"lavfi.values.VAVG",metabuf,0);
+    
+    snprintf(metabuf,sizeof(metabuf),"%d",maxc);
+    av_dict_set(&in->metadata,"lavfi.values.VMAX",metabuf,0);
+
+    
     
     if (values->fh != NULL) {
         fprintf(values->fh,"%d %d %g %d %d %g %d %d %g %d",values->fc,
