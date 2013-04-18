@@ -43,6 +43,7 @@
  16 April 07:10 - 7:40
  */
 
+static const char *const filter_metanames[] = { "TOUT", NULL };
 static const char *const filter_names[] = { "tout", NULL };
 
 enum FilterMode {
@@ -78,6 +79,7 @@ typedef struct
     
     enum FilterMode outfilter;
     int filter[FILT_NUMB];
+    char *statistics_str;
     
 } valuesContext;
 
@@ -90,12 +92,11 @@ int tout_outlier(uint8_t x, uint8_t y, uint8_t z);
 
 
 static const AVOption values_options[]= {
-    {"tout", "outlier statistics", OFFSET(filter[FILTER_TOUT]), AV_OPT_TYPE_CONST, {FILTER_TOUT}, FILTER_TOUT,FILTER_TOUT},
     {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {"f", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
-    {"out", "set filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
+    {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
     {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
-    
+    {"stat","set | seperated statistics filter", OFFSET(statistics_str),AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {NULL}
 };
 
@@ -113,8 +114,6 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
     values->class = &values_class;
 
     av_opt_set_defaults(values);
-
-    
     
     av_log(ctx, AV_LOG_DEBUG, "    init() av_set_options_string.\n");
 
@@ -122,17 +121,48 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
     if ((ret = av_set_options_string(values, args, "=", ":")) < 0)
         return ret;
 
+    // parse statistics filter string
+
+    do {
+        char *next,*cur=values->statistics_str;
+        int fil,ok;
+        while (cur) {
+            next = strchr(cur,'|');
+            if (next)
+                *next++=0;
+            
+            ok=0;
+            for (fil = 0; fil < FILT_NUMB; fil ++) {
+                
+                
+                if (strcmp(filter_names[fil],cur)==0)
+                {
+                    av_log(ctx,AV_LOG_DEBUG, "Found filter: %s\n",filter_names[fil]);
+
+                    ok = 1;
+                    values->filter[fil] = 1;
+                }
+            }
+            if (!ok)
+            {
+                av_log(ctx, AV_LOG_ERROR, "Error parsing: %s.\n", cur);
+                av_opt_free(values);
+                return AVERROR(EINVAL);
+            }
+            cur = next;                                                         \
+
+        }
+    } while(0);
+    //
+    
     values->fc = 0;
     values->fh = NULL;
     
     if (values->filename != NULL)
-    {
         values->fh = fopen (values->filename,"w");
-    }
     
     av_log(ctx, AV_LOG_DEBUG, "<<< init().\n");
 
-    
 	return 0;
 }
 
@@ -146,7 +176,7 @@ static int query_formats(AVFilterContext *ctx)
 {
     // will want more
     enum PixelFormat pix_fmts[] = {
-        PIX_FMT_YUV444P,  PIX_FMT_YUV422P,  PIX_FMT_YUV420P,
+        PIX_FMT_YUV444P,  PIX_FMT_YUV422P,  PIX_FMT_YUV420P, PIX_FMT_YUV411P,
         PIX_FMT_NONE
     };
 	
@@ -173,7 +203,6 @@ static int config_props(AVFilterLink *outlink)
 	outlink->w = inlink->w;
     outlink->h = inlink->h;
 	
-    // may need to check that this is correct
     values->chromaw = inlink->w >> hsub;
     values->chromah = inlink->h >> vsub;
 
@@ -302,7 +331,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             
             for (fil = 0; fil < FILT_NUMB; fil ++) {
                 if (filter_call[fil](in,i,j,link->w,link->h)) {
-                    if (values->outfilter == fil || values->filter[fil])
+                    if (values->filter[fil] || values->outfilter == fil)
                     {
                         values->filter[fil]=1;
                         filtot[fil] ++;
@@ -363,6 +392,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     snprintf(metabuf,sizeof(metabuf),"%d",maxv);
     av_dict_set(&out->metadata,"lavfi.values.VMAX",metabuf,0);
 
+    for (fil = 0; fil < FILT_NUMB; fil ++) {
+        if (values->filter[fil]) {
+            char metaname[128];
+            snprintf(metabuf,sizeof(metabuf),"%g",1.0 * filtot[fil]/values->fs);
+            snprintf(metaname,sizeof(metaname),"lavfi.values.%s",filter_metanames[fil]);
+            av_dict_set(&out->metadata,metaname,metabuf,0);
+        }
+    }
     
     
     if (values->fh != NULL) {
