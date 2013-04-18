@@ -85,6 +85,8 @@ typedef struct
     int filter[FILT_NUMB];
     char *statistics_str;
     
+    AVFrame *frame_prev;
+    
 } valuesContext;
 
 
@@ -163,6 +165,7 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
     if (values->filename != NULL)
         values->fh = fopen (values->filename,"w");
     
+    
     av_log(ctx, AV_LOG_DEBUG, "<<< init().\n");
 
 	return 0;
@@ -171,7 +174,12 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
 static av_cold void uninit(AVFilterContext *ctx)
 {
     valuesContext *values = ctx->priv;
-    fclose(values->fh);
+    if (values->fh)
+        fclose(values->fh);
+    
+    av_frame_free(&values->frame_prev);
+
+    
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -210,6 +218,22 @@ static int config_props(AVFilterLink *outlink)
 
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
+    
+    
+    values->frame_prev = av_frame_alloc();
+    values->frame_prev->width  = inlink->w;
+    values->frame_prev->height = inlink->h;
+    values->frame_prev->format = inlink->format;
+    
+    if (av_frame_get_buffer(values->frame_prev, 32) < 0)
+    {
+        av_frame_free(&values->frame_prev);
+        return AVERROR(EINVAL);
+    }
+    
+    memset(values->frame_prev->data[0],16,values->frame_prev->linesize[0]*values->frame_prev->height);
+    memset(values->frame_prev->data[1],128,values->frame_prev->linesize[1]*values->frame_prev->height >> vsub);
+    memset(values->frame_prev->data[2],128,values->frame_prev->linesize[2]*values->frame_prev->height >> vsub);
     
     av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
 
@@ -276,6 +300,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     
 	int miny,minu,minv;
 	int toty=0,totu=0,totv=0;
+    int dify=0,difu=0,difv=0;
 	int maxy,maxu,maxv;
 
     int filtot[FILT_NUMB];
@@ -306,6 +331,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             out->data[0][ow+i] = 16;
 
+            dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][w+i]);
+
             
             if (i<values->chromaw && j<values->chromah) {
 				yuv = in->data[1][cw+i];
@@ -318,10 +345,16 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 				if (yuv < minv) minv=yuv;
 				totv += yuv;
 
+                difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cw+i]);
+                difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cw+i]);
+
+                
                 out->data[1][cow+i] = 128;
                 out->data[2][cow+i] = 128;
                 
 			}
+            
+            
             
             // magic filter
             // options to disable and enable them
@@ -348,6 +381,12 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         cw += in->linesize[1];
 	}
 	
+    for (j=0;j<link->h;j++) {
+        memcpy(values->frame_prev->data[0] + j * values->frame_prev->linesize[0], in->data[0]+ j * in->linesize[0], link->w);
+        memcpy(values->frame_prev->data[1] + j * values->frame_prev->linesize[1], in->data[1]+ j * in->linesize[1], values->chromaw);
+        memcpy(values->frame_prev->data[2] + j * values->frame_prev->linesize[2], in->data[2]+ j * in->linesize[2], values->chromaw);
+
+    }
     
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
     av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
@@ -376,6 +415,18 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     snprintf(metabuf,sizeof(metabuf),"%d",maxv);
     av_dict_set(&out->metadata,"lavfi.values.VMAX",metabuf,0);
 
+    
+    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difv / values->fs);
+    av_dict_set(&out->metadata,"lavfi.values.YDIF",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difu / values->cfs);
+    av_dict_set(&out->metadata,"lavfi.values.UDIF",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difv / values->cfs);
+    av_dict_set(&out->metadata,"lavfi.values.VDIF",metabuf,0);
+
+    
+    
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filter[fil]) {
             char metaname[128];
