@@ -354,8 +354,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 
 			}
             
-            
-            
             // magic filter
             // options to disable and enable them
             // option to pick one for video out
