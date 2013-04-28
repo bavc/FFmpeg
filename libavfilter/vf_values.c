@@ -47,19 +47,23 @@
 /* Prototypes for filter functions */
 
 static int filter_tout(AVFrame *p, int x, int y, int w, int h);
+static int filter_vrep(AVFrame *p, int x, int y, int w, int h);
+
 
 enum FilterMode {
     FILTER_NONE = -1,
     FILTER_TOUT,
+    FILTER_VREP,
     FILT_NUMB
 };
 
 static int (*filter_call[FILT_NUMB])(AVFrame *p, int x, int y, int w, int h) = {
-    filter_tout
+    filter_tout,
+    filter_vrep
 };
 
-static const char *const filter_metanames[] = { "TOUT", NULL };
-static const char *const filter_names[] = { "tout", NULL };
+static const char *const filter_metanames[] = { "TOUT", "VREP", NULL };
+static const char *const filter_names[] = { "tout", "vrep",  NULL };
 
 typedef struct
 {
@@ -93,6 +97,7 @@ static const AVOption values_options[]= {
     {"f", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
     {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
+    {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0,0,FLAGS,"out"},
     {"stat","set | seperated statistics filter", OFFSET(statistics_str),AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {NULL}
 };
@@ -264,9 +269,43 @@ static int filter_tout(AVFrame *p, int x, int y, int w, int h) {
 
 }
 
+static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
+    
+    int lw = p->linesize[0];
+    int totdiff =0;
+
+    
+    if  ((y-2 < 0) || (y+2 >= h)) {
+        return 0;
+    } else {
+        int i;
+        
+        int y2lw = (y-2) * lw;
+        int ylw = y * lw;
+
+        
+        // do the whole line.
+        for (i=0; i<w; i++)
+        {
+            totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
+        }
+    }
+    
+    // need a threshold
+    
+    if (totdiff == 0)
+        return 1;
+    
+    return 0;
+    
+}
+
+
+
 static int filter_frame(AVFilterLink *link, AVFrame *in)
 {
 
+    AVFilterContext *ctx = link->src;
     valuesContext *values = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFrame *out; // = link->dst->outputs[0]->outpic;
@@ -284,6 +323,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     int filtot[FILT_NUMB];
 
+    av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
+
+    
     for (i=0; i<FILT_NUMB; i++)
         filtot[i]=0;
 
@@ -360,7 +402,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         memcpy(values->frame_prev->data[0] + j * values->frame_prev->linesize[0], in->data[0]+ j * in->linesize[0], link->w);
         memcpy(values->frame_prev->data[1] + j * values->frame_prev->linesize[1], in->data[1]+ j * in->linesize[1], values->chromaw);
         memcpy(values->frame_prev->data[2] + j * values->frame_prev->linesize[2], in->data[2]+ j * in->linesize[2], values->chromaw);
-
     }
 
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
@@ -425,6 +466,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     values->fc++;
     av_frame_free(&in);
+    av_log(ctx, AV_LOG_DEBUG, "<<< filter_frame().\n");
     return ff_filter_frame(outlink, out);
 }
 
