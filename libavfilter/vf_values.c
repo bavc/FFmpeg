@@ -42,6 +42,7 @@
  16 April 07:10 - 7:40
  17 April 16:20 - 17:00
  18 April 7:10 - 8:10, 12:50 - 13:05
+ 29 Apr 7:15-8:00, 
  */
 
 /* Prototypes for filter functions */
@@ -269,23 +270,27 @@ static int filter_tout(AVFrame *p, int x, int y, int w, int h) {
 
 }
 
+static int filter_vrep_prev;
+
 static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
     
     int lw = p->linesize[0];
     int totdiff =0;
 
+    if (x != 0 )
+        return filter_vrep_prev;
     
     if  ((y-2 < 0) || (y+2 >= h)) {
         return 0;
     } else {
-        int i;
+        int i=0;
         
         int y2lw = (y-2) * lw;
         int ylw = y * lw;
 
         
         // do the whole line.
-        for (i=0; i<w; i++)
+       for (i=0; i<w; i++)
         {
             totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
         }
@@ -293,9 +298,12 @@ static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
     
     // need a threshold
     
-    if (totdiff == 0)
+    if (totdiff < 255) {
+        filter_vrep_prev=1;
         return 1;
+    }
     
+    filter_vrep_prev=0;
     return 0;
     
 }
@@ -348,6 +356,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             if (yuv > maxy) maxy=yuv;
             if (yuv < miny) miny=yuv;
+            
             toty += yuv;
 
             out->data[0][ow+i] = 16;
@@ -368,8 +377,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cw+i]);
                 difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cw+i]);
 
-                out->data[1][cow+i] = 128;
-                out->data[2][cow+i] = 128;
+                out->data[1][cow+i] =128 ; // in->data[1][cow+i];
+                out->data[2][cow+i] = 128; // in->data[2][cow+i];
 
             }
 
@@ -378,9 +387,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             // option to pick one for video out
 
             for (fil = 0; fil < FILT_NUMB; fil ++) {
-                if (filter_call[fil](in,i,j,link->w,link->h)) {
-                    if (values->filter[fil] || values->outfilter == fil)
-                    {
+                if (values->filter[fil] || values->outfilter == fil)
+                {
+                    if (filter_call[fil](in,i,j,link->w,link->h)) {
                         values->filter[fil]=1;
                         filtot[fil] ++;
                         if (values->outfilter == fil)
@@ -396,13 +405,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         ow += out->linesize[0];
         w += in->linesize[0];
         cw += in->linesize[1];
+        
+        memcpy(values->frame_prev->data[0] + j * values->frame_prev->linesize[0], in->data[0]+ j * in->linesize[0], link->w);
+        if ( j < values->chromah) {
+            memcpy(values->frame_prev->data[1] + j * values->frame_prev->linesize[1], in->data[1]+ j * in->linesize[1], values->chromaw);
+            memcpy(values->frame_prev->data[2] + j * values->frame_prev->linesize[2], in->data[2]+ j * in->linesize[2], values->chromaw);
+        }
     }
 
-    for (j=0;j<link->h;j++) {
-        memcpy(values->frame_prev->data[0] + j * values->frame_prev->linesize[0], in->data[0]+ j * in->linesize[0], link->w);
-        memcpy(values->frame_prev->data[1] + j * values->frame_prev->linesize[1], in->data[1]+ j * in->linesize[1], values->chromaw);
-        memcpy(values->frame_prev->data[2] + j * values->frame_prev->linesize[2], in->data[2]+ j * in->linesize[2], values->chromaw);
-    }
 
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
     av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
