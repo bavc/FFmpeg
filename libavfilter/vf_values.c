@@ -280,12 +280,12 @@ static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
     if (x != 0 )
         return filter_vrep_prev;
     
-    if  ((y-2 < 0) || (y+2 >= h)) {
+    if  (y-4 < 0) {
         return 0;
     } else {
         int i=0;
         
-        int y2lw = (y-2) * lw;
+        int y2lw = (y-4) * lw;
         int ylw = y * lw;
 
         
@@ -298,7 +298,7 @@ static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
     
     // need a threshold
     
-    if (totdiff < 255) {
+    if (totdiff < 512) {
         filter_vrep_prev=1;
         return 1;
     }
@@ -359,7 +359,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             
             toty += yuv;
 
-            out->data[0][ow+i] = 16;
+            out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][w+i]);
 
@@ -377,8 +377,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cw+i]);
                 difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cw+i]);
 
-                out->data[1][cow+i] =128 ; // in->data[1][cow+i];
-                out->data[2][cow+i] = 128; // in->data[2][cow+i];
+                
+                // or 128
+                out->data[1][cow+i] = in->data[1][cow+i];
+                out->data[2][cow+i] = in->data[2][cow+i];
 
             }
 
@@ -401,8 +403,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             }
         }
 
-        cow += out->linesize[1];
         ow += out->linesize[0];
+        cow += out->linesize[1];
+        
         w += in->linesize[0];
         cw += in->linesize[1];
         
