@@ -66,6 +66,8 @@ static int (*filter_call[FILT_NUMB])(AVFrame *p, int x, int y, int w, int h) = {
 static const char *const filter_metanames[] = { "TOUT", "VREP", NULL };
 static const char *const filter_names[] = { "tout", "vrep",  NULL };
 
+/* end of filter definitions */
+
 typedef struct
 {
     const AVClass *class;
@@ -204,8 +206,8 @@ static int config_props(AVFilterLink *outlink)
     outlink->w = inlink->w;
     outlink->h = inlink->h;
 
-    values->chromaw = inlink->w >> hsub;
-    values->chromah = inlink->h >> vsub;
+    values->chromaw = -((-inlink->w) >> hsub);
+    values->chromah = -((-inlink->h) >> vsub);
 
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
@@ -308,7 +310,7 @@ static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
     
 }
 
-
+#define DEPTH 256
 
 static int filter_frame(AVFilterLink *link, AVFrame *in)
 {
@@ -323,17 +325,27 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int yuv;
     int fil;
     char metabuf[128];
+    unsigned int histy[DEPTH],histu[DEPTH],histv[DEPTH]; // limited to 8 bit data.
 
     int miny,minu,minv;
+    int maxy,maxu,maxv;
+    int lowy=-1,lowu=-1,lowv=-1;
+    int highy=-1,highu=-1,highv=-1;
+    int lowp,highp,clowp,chighp;
+    int accy,accu,accv;
     int toty=0,totu=0,totv=0;
     int dify=0,difu=0,difv=0;
-    int maxy,maxu,maxv;
 
     int filtot[FILT_NUMB];
 
     av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
 
-    
+    for (i=0;i<DEPTH;i++)
+    {
+        histy[i]=0;
+        histu[i]=0;
+        histv[i]=0;
+    }
     for (i=0; i<FILT_NUMB; i++)
         filtot[i]=0;
 
@@ -359,20 +371,27 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             
             toty += yuv;
 
+            histy[yuv]++;
+            
             out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][w+i]);
 
+        
             if (i<values->chromaw && j<values->chromah) {
                 yuv = in->data[1][cw+i];
                 if (yuv > maxu) maxu=yuv;
                 if (yuv < minu) minu=yuv;
                 totu += yuv;
+                histu[yuv]++;
 
+                
                 yuv = in->data[2][cw+i];
                 if (yuv > maxv) maxv=yuv;
                 if (yuv < minv) minv=yuv;
                 totv += yuv;
+                histv[yuv]++;
+
 
                 difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cw+i]);
                 difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cw+i]);
@@ -384,6 +403,42 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             }
 
+            // find low / high based on histogram percentile
+            
+            lowp = link->h * link->w * 10 / 100;
+            highp = link->h * link->w * 95 / 100;
+            clowp = values->chromah * values->chromaw * 10 / 100;
+            chighp = values->chromah * values->chromaw * 95 / 100;
+
+            accy = 0; accu=0; accv=0;
+            for (i=0; i < DEPTH; i++)
+            {
+                
+                accy += histy[i];
+                accu += histu[i];
+                accv += histv[i];
+                
+                if (lowy == -1 && accy >= lowp)
+                    lowy = i;
+                
+                if (lowu == -1 && accu >= clowp)
+                    lowu = i;
+                
+                if (lowv == -1 && accv >= clowp)
+                    lowv = i;
+
+                
+                if (highy == -1 && accy >= highp)
+                    highy = i;
+                
+                if (highu == -1 && accu >= chighp)
+                    highu = i;
+                
+                if (highv == -1 && accv >= chighp)
+                    highv = i;
+
+                
+            }
             // magic filter
             // options to disable and enable them
             // option to pick one for video out
@@ -419,9 +474,15 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
     av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
+    
+    snprintf(metabuf,sizeof(metabuf),"%d",lowy);
+    av_dict_set(&out->metadata,"lavfi.values.YLOW",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * toty / values->fs);
     av_dict_set(&out->metadata,"lavfi.values.YAVG",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%d",highy);
+    av_dict_set(&out->metadata,"lavfi.values.YHIGH",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%d",maxy);
     av_dict_set(&out->metadata,"lavfi.values.YMAX",metabuf,0);
@@ -429,8 +490,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     snprintf(metabuf,sizeof(metabuf),"%d",minu);
     av_dict_set(&out->metadata,"lavfi.values.UMIN",metabuf,0);
 
+    snprintf(metabuf,sizeof(metabuf),"%d",lowu);
+    av_dict_set(&out->metadata,"lavfi.values.ULOW",metabuf,0);
+
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totu / values->cfs);
     av_dict_set(&out->metadata,"lavfi.values.UAVG",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%d",highu);
+    av_dict_set(&out->metadata,"lavfi.values.UHIGH",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%d",maxu);
     av_dict_set(&out->metadata,"lavfi.values.UMAX",metabuf,0);
@@ -438,8 +505,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     snprintf(metabuf,sizeof(metabuf),"%d",minv);
     av_dict_set(&out->metadata,"lavfi.values.VMIN",metabuf,0);
 
+    snprintf(metabuf,sizeof(metabuf),"%d",lowv);
+    av_dict_set(&out->metadata,"lavfi.values.VLOW",metabuf,0);
+
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totv / values->cfs);
     av_dict_set(&out->metadata,"lavfi.values.VAVG",metabuf,0);
+
+    snprintf(metabuf,sizeof(metabuf),"%d",highv);
+    av_dict_set(&out->metadata,"lavfi.values.VHIGH",metabuf,0);
 
     snprintf(metabuf,sizeof(metabuf),"%d",maxv);
     av_dict_set(&out->metadata,"lavfi.values.VMAX",metabuf,0);
