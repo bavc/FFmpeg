@@ -361,6 +361,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     minv = in->data[2][0];
     maxv = in->data[2][0];
     
+    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for(j=0...)\n");
+
     for (j=0; j<link->h; j++) {
         for (i=0;i<link->w;i++) {
             
@@ -411,31 +413,31 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             chighp = values->cfs * 95 / 100;
             
             accy = 0; accu=0; accv=0;
-            for (i=0; i < DEPTH; i++)
+            for (fil=0; fil < DEPTH; fil++)
             {
                 
-                accy += histy[i];
-                accu += histu[i];
-                accv += histv[i];
+                accy += histy[fil];
+                accu += histu[fil];
+                accv += histv[fil];
                 
                 if (lowy == -1 && accy >= lowp)
-                    lowy = i;
+                    lowy = fil;
                 
                 if (lowu == -1 && accu >= clowp)
-                    lowu = i;
+                    lowu = fil;
                 
                 if (lowv == -1 && accv >= clowp)
-                    lowv = i;
+                    lowv = fil;
                 
                 
                 if (highy == -1 && accy >= highp)
-                    highy = i;
+                    highy = fil;
                 
                 if (highu == -1 && accu >= chighp)
-                    highu = i;
+                    highu = fil;
                 
                 if (highv == -1 && accv >= chighp)
-                    highv = i;
+                    highv = fil;
                 
                 
             }
@@ -470,13 +472,15 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             memcpy(values->frame_prev->data[2] + j * values->frame_prev->linesize[2], in->data[2]+ j * in->linesize[2], values->chromaw);
         }
          */
+
     }
-    
+    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() av_frame_free()\n");
+
     av_frame_free(&values->frame_prev);
 
-    values->frame_prev->data[0] = in->data[0];
-    values->frame_prev->data[1] = in->data[1];
-    values->frame_prev->data[2] = in->data[2];
+    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() prev->data = in->data\n");
+
+    values->frame_prev=  in;
     
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
     av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
@@ -531,6 +535,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     
     snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difv / values->cfs);
     av_dict_set(&out->metadata,"lavfi.values.VDIF",metabuf,0);
+    
+    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
+
     
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filter[fil]) {
