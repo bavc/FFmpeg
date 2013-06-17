@@ -49,22 +49,24 @@
 
 static int filter_tout(AVFrame *p, int x, int y, int w, int h);
 static int filter_vrep(AVFrame *p, int x, int y, int w, int h);
-
+static int filter_range(AVFrame *p, int x, int y, int w, int h);
 
 enum FilterMode {
     FILTER_NONE = -1,
     FILTER_TOUT,
     FILTER_VREP,
+    FILTER_RANGE,
     FILT_NUMB
 };
 
 static int (*filter_call[FILT_NUMB])(AVFrame *p, int x, int y, int w, int h) = {
     filter_tout,
-    filter_vrep
+    filter_vrep,
+    filter_range
 };
 
-static const char *const filter_metanames[] = { "TOUT", "VREP", NULL };
-static const char *const filter_names[] = { "tout", "vrep",  NULL };
+static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", NULL };
+static const char *const filter_names[] = { "tout", "vrep",  "rang", NULL };
 
 /* end of filter definitions */
 
@@ -101,6 +103,7 @@ static const AVOption values_options[]= {
     {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
     {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
     {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0,0,FLAGS,"out"},
+    {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0,0,FLAGS,"out"},
     {"stat","set | seperated statistics filter", OFFSET(statistics_str),AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {NULL}
 };
@@ -243,6 +246,16 @@ int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     
     // Will make this configurable by command line option.
     return dif>4?1:0;
+    
+}
+
+static int filter_range (AVFrame *p, int x, int y, int w, int h) {
+ 
+    int lw = p->linesize[0];
+    int luma = p->data[0][y * lw + x];
+    
+    return (luma<16 || luma>235)?1:0;
+    
     
 }
 
@@ -406,6 +419,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             }
             
             // find low / high based on histogram percentile
+            // these only need to be calculated once.
             
             lowp = values->fs * 10 / 100;
             highp = values->fs * 95 / 100;
@@ -448,8 +462,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             for (fil = 0; fil < FILT_NUMB; fil ++) {
                 if (values->filter[fil] || values->outfilter == fil)
                 {
+                    values->filter[fil]=1;
                     if (filter_call[fil](in,i,j,link->w,link->h)) {
-                        values->filter[fil]=1;
                         filtot[fil] ++;
                         if (values->outfilter == fil)
                         {
