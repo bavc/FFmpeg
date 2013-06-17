@@ -36,14 +36,6 @@
 #include <strings.h>
 #include <fcntl.h>
 
-/* time
- 10 April 06:58 - 07:38
- 15 April 16:15 - 16:50
- 16 April 07:10 - 7:40
- 17 April 16:20 - 17:00
- 18 April 7:10 - 8:10, 12:50 - 13:05
- 29 Apr 7:15-8:00,
- */
 
 /* Prototypes for filter functions */
 
@@ -418,43 +410,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 
             }
             
-            // find low / high based on histogram percentile
-            // these only need to be calculated once.
-            
-            lowp = values->fs * 10 / 100;
-            highp = values->fs * 95 / 100;
-            clowp = values->cfs * 10 / 100;
-            chighp = values->cfs * 95 / 100;
-            
-            accy = 0; accu=0; accv=0;
-            for (fil=0; fil < DEPTH; fil++)
-            {
-                
-                accy += histy[fil];
-                accu += histu[fil];
-                accv += histv[fil];
-                
-                if (lowy == -1 && accy >= lowp)
-                    lowy = fil;
-                
-                if (lowu == -1 && accu >= clowp)
-                    lowu = fil;
-                
-                if (lowv == -1 && accv >= clowp)
-                    lowv = fil;
-                
-                
-                if (highy == -1 && accy >= highp)
-                    highy = fil;
-                
-                if (highu == -1 && accu >= chighp)
-                    highu = fil;
-                
-                if (highv == -1 && accv >= chighp)
-                    highv = fil;
-                
-                
-            }
             // magic filter
             // options to disable and enable them
             // option to pick one for video out
@@ -488,6 +443,47 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
          */
 
     }
+    
+    
+    // find low / high based on histogram percentile
+    // these only need to be calculated once.
+    
+    lowp = values->fs * 10 / 100;
+    highp = values->fs * 95 / 100;
+    clowp = values->cfs * 10 / 100;
+    chighp = values->cfs * 95 / 100;
+    
+    accy = 0; accu=0; accv=0;
+    for (fil=0; fil < DEPTH; fil++)
+    {
+        
+        accy += histy[fil];
+        accu += histu[fil];
+        accv += histv[fil];
+        
+        if (lowy == -1 && accy >= lowp)
+            lowy = fil;
+        
+        if (lowu == -1 && accu >= clowp)
+            lowu = fil;
+        
+        if (lowv == -1 && accv >= clowp)
+            lowv = fil;
+        
+        
+        if (highy == -1 && accy >= highp)
+            highy = fil;
+        
+        if (highu == -1 && accu >= chighp)
+            highu = fil;
+        
+        if (highv == -1 && accv >= chighp)
+            highv = fil;
+        
+        
+    }
+
+    
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() av_frame_free()\n");
 
     av_frame_free(&values->frame_prev);
