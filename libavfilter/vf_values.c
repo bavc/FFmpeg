@@ -95,7 +95,7 @@ static const AVOption values_options[]= {
     {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
     {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
     {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0,0,FLAGS,"out"},
-    {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0,0,FLAGS,"out"},
+    {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0,0,FLAGS,"out"},
     {"stat","set | seperated statistics filter", OFFSET(statistics_str),AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
     {NULL}
 };
@@ -246,6 +246,7 @@ static int filter_range (AVFrame *p, int x, int y, int w, int h) {
     int lw = p->linesize[0];
     int luma = p->data[0][y * lw + x];
     
+    
     return (luma<16 || luma>235)?1:0;
     
     
@@ -254,6 +255,8 @@ static int filter_range (AVFrame *p, int x, int y, int w, int h) {
 static int filter_tout(AVFrame *p, int x, int y, int w, int h) {
     
     int lw = p->linesize[0];
+    
+
     
     if ((x-1 < 0) || (x+1 > w) || (y-1 < 0) || (y+1 >= h)) {
         return 0;
@@ -410,9 +413,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 
             }
             
-            // magic filter
-            // options to disable and enable them
-            // option to pick one for video out
+            // magic filter array
             
             for (fil = 0; fil < FILT_NUMB; fil ++) {
                 if (values->filter[fil] || values->outfilter == fil)
