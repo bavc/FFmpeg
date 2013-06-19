@@ -95,7 +95,7 @@ static const AVOption values_options[] = {
         {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT},  0, 0, FLAGS, "out"},
         {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
         {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0, 0, FLAGS, "out"},
-    {"stat", "set | seperated statistics filter", OFFSET(statistics_str), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
+    {"stat", "set the '|'-separated list of statistics filter", OFFSET(statistics_str), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {NULL}
 };
 
