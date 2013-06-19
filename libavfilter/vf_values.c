@@ -397,8 +397,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
                 // or 128
                 if (!direct) {
-                    out->data[1][cow+i] = in->data[1][cow+i];
-                    out->data[2][cow+i] = in->data[2][cow+i];
+                    out->data[1][cow+i] = in->data[1][cw+i];
+                    out->data[2][cow+i] = in->data[2][cw+i];
                 }
 
             }
