@@ -154,9 +154,7 @@ static av_cold void uninit(AVFilterContext *ctx)
     valuesContext *values = ctx->priv;
     if (values->fh)
         fclose(values->fh);
-
-    //    av_frame_free(&values->frame_prev);
-
+    av_frame_free(&values->frame_prev);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -313,6 +311,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     valuesContext *values = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFrame *out; // = link->dst->outputs[0]->outpic;
+    int direct = 0;
 
     int i,j;
     int cw =0 ,w=0,ow=0,cow=0;
@@ -336,12 +335,17 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
 
+    if (av_frame_is_writable(in)) {
+        out = in;
+        direct = 1;
+    } else {
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!out) {
         av_frame_free(&in);
         return AVERROR(ENOMEM);
     }
     av_frame_copy_props(out, in);
+    }
 
     miny = in->data[0][0];
     maxy = in->data[0][0];
@@ -366,6 +370,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             histy[yuv]++;
 
+            if (!direct)
             out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][w+i]);
@@ -391,8 +396,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
 
                 // or 128
+                if (!direct) {
                 out->data[1][cow+i] = in->data[1][cow+i];
                 out->data[2][cow+i] = in->data[2][cow+i];
+                }
 
             }
 
@@ -474,7 +481,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() prev->data = in->data\n");
 
-    values->frame_prev=  in;
+    values->frame_prev = av_frame_clone(in);
 
     snprintf(metabuf,sizeof(metabuf),"%d",miny);
     av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
@@ -558,7 +565,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
      }
      */
     values->fc++;
-//    av_frame_free(&in);
+    if (!direct)
+        av_frame_free(&in);
     av_log(ctx, AV_LOG_DEBUG, "<<< filter_frame().\n");
     return ff_filter_frame(outlink, out);
 }
