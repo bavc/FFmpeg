@@ -319,7 +319,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int yuv;
     int fil;
     char metabuf[128];
-    unsigned int histy[DEPTH],histu[DEPTH],histv[DEPTH]; // limited to 8 bit data.
+    unsigned int histy[DEPTH] = {0},
+                 histu[DEPTH] = {0},
+                 histv[DEPTH] = {0}; // limited to 8 bit data.
 
     int miny,minu,minv;
     int maxy,maxu,maxv;
@@ -330,18 +332,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int toty=0,totu=0,totv=0;
     int dify=0,difu=0,difv=0;
 
-    int filtot[FILT_NUMB];
+    int filtot[FILT_NUMB] = {0};
 
     av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
-
-    for (i=0;i<DEPTH;i++)
-    {
-        histy[i]=0;
-        histu[i]=0;
-        histv[i]=0;
-    }
-    for (i=0; i<FILT_NUMB; i++)
-        filtot[i]=0;
 
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     av_frame_copy_props(out, in);
