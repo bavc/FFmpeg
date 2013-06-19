@@ -123,9 +123,6 @@ static av_cold int init(AVFilterContext *ctx)
     } while (0);
     //
 
-    values->fc = 0;
-    values->fh = NULL;
-
     if (values->filename)
         values->fh = fopen(values->filename, "w");
 
