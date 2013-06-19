@@ -36,7 +36,6 @@
 #include <strings.h>
 #include <fcntl.h>
 
-
 /* Prototypes for filter functions */
 
 static int filter_tout(const AVFrame *p, int x, int y, int w, int h);
@@ -58,7 +57,7 @@ static int (*filter_call[FILT_NUMB])(const AVFrame *p, int x, int y, int w, int 
 };
 
 static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", NULL };
-static const char *const filter_names[] = { "tout", "vrep",  "rang", NULL };
+static const char *const filter_names[]     = { "tout", "vrep", "rang", NULL };
 
 /* end of filter definitions */
 
@@ -89,14 +88,14 @@ typedef struct
 
 int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z);
 
-static const AVOption values_options[]= {
-    {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
-    {"f", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
-    {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1,FLAGS,"out"},
-    {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0,0,FLAGS,"out"},
-    {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0,0,FLAGS,"out"},
-    {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0,0,FLAGS,"out"},
-    {"stat","set | seperated statistics filter", OFFSET(statistics_str),AV_OPT_TYPE_STRING, {.str=NULL},  CHAR_MIN, CHAR_MAX},
+static const AVOption values_options[] = {
+    {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, CHAR_MIN, CHAR_MAX},
+    {"f",        "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, CHAR_MIN, CHAR_MAX},
+    {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1, FLAGS, "out"},
+        {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT},  0, 0, FLAGS, "out"},
+        {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
+        {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0, 0, FLAGS, "out"},
+    {"stat", "set | seperated statistics filter", OFFSET(statistics_str), AV_OPT_TYPE_STRING, {.str=NULL}, CHAR_MIN, CHAR_MAX},
     {NULL}
 };
 
@@ -109,40 +108,35 @@ static av_cold int init(AVFilterContext *ctx)
     // parse statistics filter string
 
     do {
-        char *next,*cur=values->statistics_str;
-        int fil,ok;
+        char *next, *cur = values->statistics_str;
+        int fil, ok;
         while (cur) {
             next = strchr(cur,'|');
             if (next)
-                *next++=0;
+                *next++ = 0;
 
-            ok=0;
-            for (fil = 0; fil < FILT_NUMB; fil ++) {
-
-                if (strcmp(filter_names[fil],cur)==0)
-                {
-                    av_log(ctx,AV_LOG_DEBUG, "Found filter: %s\n",filter_names[fil]);
-
+            ok = 0;
+            for (fil = 0; fil < FILT_NUMB; fil++) {
+                if (!strcmp(filter_names[fil], cur)) {
+                    av_log(ctx,AV_LOG_DEBUG, "Found filter: %s\n", filter_names[fil]);
                     ok = 1;
                     values->filter[fil] = 1;
                 }
             }
-            if (!ok)
-            {
+            if (!ok) {
                 av_log(ctx, AV_LOG_ERROR, "Error parsing: %s.\n", cur);
                 return AVERROR(EINVAL);
             }
             cur = next;
-
         }
-    } while(0);
+    } while (0);
     //
 
     values->fc = 0;
     values->fh = NULL;
 
-    if (values->filename != NULL)
-        values->fh = fopen (values->filename,"w");
+    if (values->filename)
+        values->fh = fopen(values->filename, "w");
 
     av_log(ctx, AV_LOG_DEBUG, "<<< init().\n");
 
@@ -171,7 +165,6 @@ static int query_formats(AVFilterContext *ctx)
 
 static int config_props(AVFilterLink *outlink)
 {
-
     AVFilterContext *ctx = outlink->src;
     valuesContext *values = ctx->priv;
     AVFilterLink *inlink = outlink->src->inputs[0];
@@ -194,20 +187,18 @@ static int config_props(AVFilterLink *outlink)
     av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
 
     return 0;
-
 }
 
 int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
 {
     int dif;
 
-    dif =  ((abs(x - y) + abs (z - y) ) / 2) - abs(z-x);
+    dif = ((abs(x - y) + abs (z - y)) / 2) - abs(z - x);
 
     //fprintf(stderr,"dif: %d %d\n",dif2,dif1);
 
     // Will make this configurable by command line option.
     return dif>4?1:0;
-
 }
 
 static int filter_range(const AVFrame *p, int x, int y, int w, int h)
@@ -215,38 +206,34 @@ static int filter_range(const AVFrame *p, int x, int y, int w, int h)
     int lw = p->linesize[0];
     int luma = p->data[0][y * lw + x];
 
-
     return (luma<16 || luma>235)?1:0;
-
-
 }
 
 static int filter_tout(const AVFrame *p, int x, int y, int w, int h)
 {
     int lw = p->linesize[0];
 
-
-
     if ((x-1 < 0) || (x+1 > w) || (y-1 < 0) || (y+1 >= h)) {
         return 0;
     } else {
         int i;
 
-        for (i=-1; i<2; i++)
-        {
+        for (i = -1; i < 2; i++) {
             // detect two pixels above and below (to eliminate interlace artefacts)
             if ((y-2 >=0) && (y+2 < h)) {
-                if (!filter_tout_outlier(p->data[0][(y-2) * lw + i+x], p->data[0][y * lw + i+x], p->data[0][(y+2) * lw + i+x]))
+                if (!filter_tout_outlier(p->data[0][(y-2) * lw + i+x],
+                                         p->data[0][    y * lw + i+x],
+                                         p->data[0][(y+2) * lw + i+x]))
                     return 0;
             }
 
-            if (!filter_tout_outlier(p->data[0][(y-1) * lw + i+x], p->data[0][y * lw + i+x], p->data[0][(y+1) * lw + i+x]))
+            if (!filter_tout_outlier(p->data[0][(y-1) * lw + i+x],
+                                     p->data[0][    y * lw + i+x],
+                                     p->data[0][(y+1) * lw + i+x]))
                 return 0;
-
         }
     }
     return 1;
-
 }
 
 static int filter_vrep_prev;
@@ -254,37 +241,33 @@ static int filter_vrep_prev;
 static int filter_vrep(const AVFrame *p, int x, int y, int w, int h)
 {
     int lw = p->linesize[0];
-    int totdiff =0;
+    int totdiff = 0;
 
-    if (x != 0 )
+    if (x != 0)
         return filter_vrep_prev;
 
-    if  (y-4 < 0) {
+    if (y-4 < 0) {
         return 0;
     } else {
-        int i=0;
+        int i = 0;
 
         int y2lw = (y-4) * lw;
         int ylw = y * lw;
 
-
         // do the whole line.
-        for (i=0; i<w; i++)
-        {
+        for (i = 0; i < w; i++)
             totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
-        }
     }
 
     // need a threshold
 
     if (totdiff < 512) {
-        filter_vrep_prev=1;
+        filter_vrep_prev = 1;
         return 1;
     }
 
-    filter_vrep_prev=0;
+    filter_vrep_prev = 0;
     return 0;
-
 }
 
 #define DEPTH 256
@@ -295,10 +278,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     AVFilterContext *ctx = link->src;
     valuesContext *values = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
-    AVFrame *out; // = link->dst->outputs[0]->outpic;
-    int direct = 0;
-
-    int i,j;
+    AVFrame *out;
+    int i, j, direct = 0;
     int  w = 0,  cw = 0, // in
         ow = 0, cow = 0, // out
         pw = 0, cpw = 0; // prev
@@ -308,15 +289,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     unsigned int histy[DEPTH] = {0},
                  histu[DEPTH] = {0},
                  histv[DEPTH] = {0}; // limited to 8 bit data.
-
-    int miny,minu,minv;
-    int maxy,maxu,maxv;
-    int lowy=-1,lowu=-1,lowv=-1;
-    int highy=-1,highu=-1,highv=-1;
-    int lowp,highp,clowp,chighp;
-    int accy,accu,accv;
-    int toty=0,totu=0,totv=0;
-    int dify=0,difu=0,difv=0;
+    int miny, minu, minv;
+    int maxy, maxu, maxv;
+    int lowy  = -1, lowu  = -1, lowv  = -1;
+    int highy = -1, highu = -1, highv = -1;
+    int lowp, highp, clowp, chighp;
+    int accy, accu, accv;
+    int toty = 0, totu = 0, totv = 0;
+    int dify = 0, difu = 0, difv = 0;
 
     int filtot[FILT_NUMB] = {0};
 
@@ -348,8 +328,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for(j=0...)\n");
 
-    for (j=0; j<link->h; j++) {
-        for (i=0;i<link->w;i++) {
+    for (j = 0; j < link->h; j++) {
+        for (i = 0; i < link->w; i++) {
 
             yuv = in->data[0][w+i];
 
@@ -363,16 +343,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             if (!direct)
                 out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
-            dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
+            dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
 
-
-            if (i<values->chromaw && j<values->chromah) {
+            if (i < values->chromaw && j < values->chromah) {
                 yuv = in->data[1][cw+i];
                 if (yuv > maxu) maxu=yuv;
                 if (yuv < minu) minu=yuv;
                 totu += yuv;
                 histu[yuv]++;
-
 
                 yuv = in->data[2][cw+i];
                 if (yuv > maxv) maxv=yuv;
@@ -380,43 +358,36 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 totv += yuv;
                 histv[yuv]++;
 
+                difu += abs(in->data[1][cw+i] - values->frame_prev->data[1][cpw+i]);
+                difv += abs(in->data[2][cw+i] - values->frame_prev->data[2][cpw+i]);
 
-                difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cpw+i]);
-                difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cpw+i]);
-
-
-                // or 128
                 if (!direct) {
-                    out->data[1][cow+i] = in->data[1][cw+i];
-                    out->data[2][cow+i] = in->data[2][cw+i];
+                    out->data[1][cow+i] = in->data[1][cw+i]; // or 128
+                    out->data[2][cow+i] = in->data[2][cw+i]; // or 128
                 }
-
             }
 
             // magic filter array
 
             for (fil = 0; fil < FILT_NUMB; fil ++) {
-                if (values->filter[fil] || values->outfilter == fil)
-                {
+                if (values->filter[fil] || values->outfilter == fil) {
                     values->filter[fil]=1;
                     if (filter_call[fil](in,i,j,link->w,link->h)) {
                         filtot[fil] ++;
                         if (values->outfilter == fil)
-                        {
                             out->data[0][ow+i] = 235;
-                        }
                     }
                 }
             }
         }
 
-        ow += out->linesize[0];
+        ow  += out->linesize[0];
         cow += out->linesize[1];
 
-        w += in->linesize[0];
+        w  += in->linesize[0];
         cw += in->linesize[1];
 
-        pw += values->frame_prev->linesize[0];
+        pw  += values->frame_prev->linesize[0];
         cpw += values->frame_prev->linesize[1];
     }
 
@@ -424,41 +395,25 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     // find low / high based on histogram percentile
     // these only need to be calculated once.
 
-    lowp = values->fs * 10 / 100;
-    highp = values->fs * 95 / 100;
-    clowp = values->cfs * 10 / 100;
+    lowp   = values->fs  * 10 / 100;
+    highp  = values->fs  * 95 / 100;
+    clowp  = values->cfs * 10 / 100;
     chighp = values->cfs * 95 / 100;
 
     accy = 0; accu=0; accv=0;
-    for (fil=0; fil < DEPTH; fil++)
-    {
-
+    for (fil = 0; fil < DEPTH; fil++) {
         accy += histy[fil];
         accu += histu[fil];
         accv += histv[fil];
 
-        if (lowy == -1 && accy >= lowp)
-            lowy = fil;
+        if (lowy == -1 && accy >=  lowp) lowy = fil;
+        if (lowu == -1 && accu >= clowp) lowu = fil;
+        if (lowv == -1 && accv >= clowp) lowv = fil;
 
-        if (lowu == -1 && accu >= clowp)
-            lowu = fil;
-
-        if (lowv == -1 && accv >= clowp)
-            lowv = fil;
-
-
-        if (highy == -1 && accy >= highp)
-            highy = fil;
-
-        if (highu == -1 && accu >= chighp)
-            highu = fil;
-
-        if (highv == -1 && accv >= chighp)
-            highv = fil;
-
-
+        if (highy == -1 && accy >=  highp) highy = fil;
+        if (highu == -1 && accu >= chighp) highu = fil;
+        if (highv == -1 && accv >= chighp) highv = fil;
     }
-
 
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() av_frame_free()\n");
 
@@ -524,7 +479,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     return ff_filter_frame(outlink, out);
 }
 
-static const AVFilterPad avfilter_vf_values_inputs[] = {
+static const AVFilterPad values_inputs[] = {
     {
         .name            = "default",
         .type            = AVMEDIA_TYPE_VIDEO,
@@ -534,7 +489,7 @@ static const AVFilterPad avfilter_vf_values_inputs[] = {
     { NULL }
 };
 
-static const AVFilterPad avfilter_vf_values_outputs[] = {
+static const AVFilterPad values_outputs[] = {
     {
         .name            = "default",
         .config_props     = config_props,
@@ -544,17 +499,13 @@ static const AVFilterPad avfilter_vf_values_outputs[] = {
 };
 
 AVFilter avfilter_vf_values = {
-    .name      = "values",
-    .description = ".",
-
-    .init = init,
-    .uninit    = uninit,
+    .name          = "values",
+    .description   = ".",
+    .init          = init,
+    .uninit        = uninit,
     .query_formats = query_formats,
-
-    .priv_size = sizeof(valuesContext),
-
-    .inputs    = avfilter_vf_values_inputs,
-    .outputs   = avfilter_vf_values_outputs,
-    .priv_class = &values_class,
-
+    .priv_size     = sizeof(valuesContext),
+    .inputs        = values_inputs,
+    .outputs       = values_outputs,
+    .priv_class    = &values_class,
 };
