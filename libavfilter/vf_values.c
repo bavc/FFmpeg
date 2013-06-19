@@ -337,6 +337,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
 
     out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
+    if (!out) {
+        av_frame_free(&in);
+        return AVERROR(ENOMEM);
+    }
     av_frame_copy_props(out, in);
 
     miny = in->data[0][0];
