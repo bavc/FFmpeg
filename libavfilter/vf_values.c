@@ -21,19 +21,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include <strings.h>
-#include <fcntl.h>
+#include <stdio.h>
 
 #include "libavcodec/avcodec.h"
-#include "libavformat/avformat.h"
 #include "libavutil/opt.h"
-#include "libavutil/pixdesc.h"
-#include "libavutil/pixfmt.h"
-#include "libswscale/swscale.h"
-#include "avfilter.h"
-#include "formats.h"
 #include "internal.h"
-#include "video.h"
 
 /* Prototypes for filter functions */
 
