@@ -23,8 +23,8 @@
 
 #include <stdio.h>
 
-#include "libavcodec/avcodec.h"
 #include "libavutil/opt.h"
+#include "libavutil/pixdesc.h"
 #include "internal.h"
 
 /* Prototypes for filter functions */
@@ -159,12 +159,11 @@ static int config_props(AVFilterLink *outlink)
     AVFilterContext *ctx = outlink->src;
     valuesContext *values = ctx->priv;
     AVFilterLink *inlink = outlink->src->inputs[0];
-
-    int hsub, vsub;
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(outlink->format);
+    const int hsub = desc->log2_chroma_w;
+    const int vsub = desc->log2_chroma_h;
 
     av_log(ctx, AV_LOG_DEBUG, ">>> config_props().\n");
-
-    avcodec_get_chroma_sub_sample(outlink->format, &hsub, &vsub);
 
     outlink->w = inlink->w;
     outlink->h = inlink->h;
