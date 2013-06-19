@@ -314,7 +314,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int direct = 0;
 
     int i,j;
-    int cw =0 ,w=0,ow=0,cow=0;
+    int  w = 0,  cw = 0, // in
+        ow = 0, cow = 0, // out
+        pw = 0, cpw = 0; // prev
     int yuv;
     int fil;
     char metabuf[128];
@@ -373,7 +375,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             if (!direct)
                 out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
-            dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][w+i]);
+            dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
 
 
             if (i<values->chromaw && j<values->chromah) {
@@ -391,8 +393,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 histv[yuv]++;
 
 
-                difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cw+i]);
-                difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cw+i]);
+                difu  += abs(in->data[1][cw+i] - values->frame_prev->data[1][cpw+i]);
+                difv  += abs(in->data[2][cw+i] - values->frame_prev->data[2][cpw+i]);
 
 
                 // or 128
@@ -425,6 +427,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
         w += in->linesize[0];
         cw += in->linesize[1];
+
+        pw += values->frame_prev->linesize[0];
+        cpw += values->frame_prev->linesize[1];
         /*
         memcpy(values->frame_prev->data[0] + j * values->frame_prev->linesize[0], in->data[0]+ j * in->linesize[0], link->w);
         if ( j < values->chromah) {
