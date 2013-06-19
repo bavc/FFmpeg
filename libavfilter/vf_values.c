@@ -468,62 +468,30 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     values->frame_prev = av_frame_clone(in);
 
-    snprintf(metabuf,sizeof(metabuf),"%d",miny);
-    av_dict_set(&out->metadata,"lavfi.values.YMIN",metabuf,0);
+#define SET_META(key, fmt, val) do {                                \
+    snprintf(metabuf, sizeof(metabuf), fmt, val);                   \
+    av_dict_set(&out->metadata, "lavfi.values." key, metabuf, 0);   \
+} while (0)
 
-    snprintf(metabuf,sizeof(metabuf),"%d",lowy);
-    av_dict_set(&out->metadata,"lavfi.values.YLOW",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * toty / values->fs);
-    av_dict_set(&out->metadata,"lavfi.values.YAVG",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",highy);
-    av_dict_set(&out->metadata,"lavfi.values.YHIGH",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",maxy);
-    av_dict_set(&out->metadata,"lavfi.values.YMAX",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",minu);
-    av_dict_set(&out->metadata,"lavfi.values.UMIN",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",lowu);
-    av_dict_set(&out->metadata,"lavfi.values.ULOW",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totu / values->cfs);
-    av_dict_set(&out->metadata,"lavfi.values.UAVG",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",highu);
-    av_dict_set(&out->metadata,"lavfi.values.UHIGH",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",maxu);
-    av_dict_set(&out->metadata,"lavfi.values.UMAX",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",minv);
-    av_dict_set(&out->metadata,"lavfi.values.VMIN",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",lowv);
-    av_dict_set(&out->metadata,"lavfi.values.VLOW",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * totv / values->cfs);
-    av_dict_set(&out->metadata,"lavfi.values.VAVG",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",highv);
-    av_dict_set(&out->metadata,"lavfi.values.VHIGH",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%d",maxv);
-    av_dict_set(&out->metadata,"lavfi.values.VMAX",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difv / values->fs);
-    av_dict_set(&out->metadata,"lavfi.values.YDIF",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difu / values->cfs);
-    av_dict_set(&out->metadata,"lavfi.values.UDIF",metabuf,0);
-
-    snprintf(metabuf,sizeof(metabuf),"%g",1.0 * difv / values->cfs);
-    av_dict_set(&out->metadata,"lavfi.values.VDIF",metabuf,0);
-
+    SET_META("YMIN",  "%d", miny);
+    SET_META("YLOW",  "%d", lowy);
+    SET_META("YAVG",  "%g", 1.0 * toty / values->fs);
+    SET_META("YHIGH", "%d", highy);
+    SET_META("YMAX",  "%d", maxy);
+    SET_META("UMIN",  "%d", minu);
+    SET_META("ULOW",  "%d", lowu);
+    SET_META("UAVG",  "%g", 1.0 * totu / values->cfs);
+    SET_META("UHIGH", "%d", highu);
+    SET_META("UMAX",  "%d", maxu);
+    SET_META("VMIN",  "%d", minv);
+    SET_META("VLOW",  "%d", lowv);
+    SET_META("VAVG",  "%g", 1.0 * totv / values->cfs);
+    SET_META("VHIGH", "%d", highv);
+    SET_META("VMAX",  "%d", maxv);
+    SET_META("YDIF",  "%g", 1.0 * difv / values->fs);
+    SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
+    SET_META("VDIF",  "%g", 1.0 * difv / values->cfs);
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
-
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filter[fil]) {
