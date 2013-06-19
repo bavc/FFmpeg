@@ -339,12 +339,12 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         out = in;
         direct = 1;
     } else {
-    out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
-    if (!out) {
-        av_frame_free(&in);
-        return AVERROR(ENOMEM);
-    }
-    av_frame_copy_props(out, in);
+        out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
+        if (!out) {
+            av_frame_free(&in);
+            return AVERROR(ENOMEM);
+        }
+        av_frame_copy_props(out, in);
     }
 
     miny = in->data[0][0];
@@ -371,7 +371,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             histy[yuv]++;
 
             if (!direct)
-            out->data[0][ow+i] = in->data[0][w+i]; // or 16;
+                out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify  += abs(in->data[0][w+i] - values->frame_prev->data[0][w+i]);
 
@@ -397,8 +397,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
                 // or 128
                 if (!direct) {
-                out->data[1][cow+i] = in->data[1][cow+i];
-                out->data[2][cow+i] = in->data[2][cow+i];
+                    out->data[1][cow+i] = in->data[1][cow+i];
+                    out->data[2][cow+i] = in->data[2][cow+i];
                 }
 
             }
