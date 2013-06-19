@@ -191,21 +191,6 @@ static int config_props(AVFilterLink *outlink)
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
 
-    values->frame_prev = av_frame_alloc();
-    values->frame_prev->width  = inlink->w;
-    values->frame_prev->height = inlink->h;
-    values->frame_prev->format = inlink->format;
-
-    if (av_frame_get_buffer(values->frame_prev, 32) < 0)
-    {
-        av_frame_free(&values->frame_prev);
-        return AVERROR(EINVAL);
-    }
-
-    memset(values->frame_prev->data[0],16,values->frame_prev->linesize[0]*values->frame_prev->height);
-    memset(values->frame_prev->data[1],128,values->frame_prev->linesize[1]*values->chromah);
-    memset(values->frame_prev->data[2],128,values->frame_prev->linesize[2]*values->chromah);
-
     av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
 
     return 0;
@@ -337,6 +322,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
 
+    if (!values->frame_prev)
+        values->frame_prev = av_frame_clone(in);
+
     if (av_frame_is_writable(in)) {
         out = in;
         direct = 1;
@@ -430,14 +418,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
         pw += values->frame_prev->linesize[0];
         cpw += values->frame_prev->linesize[1];
-        /*
-        memcpy(values->frame_prev->data[0] + j * values->frame_prev->linesize[0], in->data[0]+ j * in->linesize[0], link->w);
-        if ( j < values->chromah) {
-            memcpy(values->frame_prev->data[1] + j * values->frame_prev->linesize[1], in->data[1]+ j * in->linesize[1], values->chromaw);
-            memcpy(values->frame_prev->data[2] + j * values->frame_prev->linesize[2], in->data[2]+ j * in->linesize[2], values->chromaw);
-        }
-         */
-
     }
 
 
