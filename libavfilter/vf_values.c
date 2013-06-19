@@ -39,9 +39,9 @@
 
 /* Prototypes for filter functions */
 
-static int filter_tout(AVFrame *p, int x, int y, int w, int h);
-static int filter_vrep(AVFrame *p, int x, int y, int w, int h);
-static int filter_range(AVFrame *p, int x, int y, int w, int h);
+static int filter_tout(const AVFrame *p, int x, int y, int w, int h);
+static int filter_vrep(const AVFrame *p, int x, int y, int w, int h);
+static int filter_range(const AVFrame *p, int x, int y, int w, int h);
 
 enum FilterMode {
     FILTER_NONE = -1,
@@ -51,7 +51,7 @@ enum FilterMode {
     FILT_NUMB
 };
 
-static int (*filter_call[FILT_NUMB])(AVFrame *p, int x, int y, int w, int h) = {
+static int (*filter_call[FILT_NUMB])(const AVFrame *p, int x, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_range
@@ -210,8 +210,8 @@ int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
 
 }
 
-static int filter_range (AVFrame *p, int x, int y, int w, int h) {
-
+static int filter_range(const AVFrame *p, int x, int y, int w, int h)
+{
     int lw = p->linesize[0];
     int luma = p->data[0][y * lw + x];
 
@@ -221,8 +221,8 @@ static int filter_range (AVFrame *p, int x, int y, int w, int h) {
 
 }
 
-static int filter_tout(AVFrame *p, int x, int y, int w, int h) {
-
+static int filter_tout(const AVFrame *p, int x, int y, int w, int h)
+{
     int lw = p->linesize[0];
 
 
@@ -251,8 +251,8 @@ static int filter_tout(AVFrame *p, int x, int y, int w, int h) {
 
 static int filter_vrep_prev;
 
-static int filter_vrep(AVFrame *p, int x, int y, int w, int h) {
-
+static int filter_vrep(const AVFrame *p, int x, int y, int w, int h)
+{
     int lw = p->linesize[0];
     int totdiff =0;
 
