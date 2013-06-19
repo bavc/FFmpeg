@@ -102,22 +102,9 @@ static const AVOption values_options[]= {
 
 AVFILTER_DEFINE_CLASS(values);
 
-// static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
-static av_cold int init(AVFilterContext *ctx, const char *args)
+static av_cold int init(AVFilterContext *ctx)
 {
     valuesContext *values = ctx->priv;
-    int ret;
-
-    av_log(ctx, AV_LOG_DEBUG, ">>> init().\n");
-
-    values->class = &values_class;
-
-    av_opt_set_defaults(values);
-
-    av_log(ctx, AV_LOG_DEBUG, "    init() av_set_options_string.\n");
-
-    if ((ret = av_set_options_string(values, args, "=", ":")) < 0)
-        return ret;
 
     // parse statistics filter string
 
@@ -143,7 +130,6 @@ static av_cold int init(AVFilterContext *ctx, const char *args)
             if (!ok)
             {
                 av_log(ctx, AV_LOG_ERROR, "Error parsing: %s.\n", cur);
-                av_opt_free(values);
                 return AVERROR(EINVAL);
             }
             cur = next;
