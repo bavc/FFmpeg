@@ -159,16 +159,10 @@ static int init_pattern_from_file(AVFilterContext *ctx)
     return init_pattern_from_string(ctx);
 }
 
-static int init(AVFilterContext *ctx, const char *args)
+static int init(AVFilterContext *ctx)
 {
     CellAutoContext *cellauto = ctx->priv;
     int ret;
-
-    cellauto->class = &cellauto_class;
-    av_opt_set_defaults(cellauto);
-
-    if ((ret = av_set_options_string(cellauto, args, "=", ":")) < 0)
-        return ret;
 
     if (!cellauto->w && !cellauto->filename && !cellauto->pattern)
         av_opt_set(cellauto, "size", "320x518", 0);

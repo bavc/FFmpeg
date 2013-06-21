@@ -118,8 +118,8 @@ static void filter(AVFilterContext *ctx)
         int refs = idet->cur->linesize[i];
 
         if (i && i<3) {
-            w >>= idet->csp->log2_chroma_w;
-            h >>= idet->csp->log2_chroma_h;
+            w = FF_CEIL_RSHIFT(w, idet->csp->log2_chroma_w);
+            h = FF_CEIL_RSHIFT(h, idet->csp->log2_chroma_h);
         }
 
         for (y = 2; y < h - 2; y++) {
@@ -206,21 +206,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *picref)
     return ff_filter_frame(ctx->outputs[0], av_frame_clone(idet->cur));
 }
 
-static int request_frame(AVFilterLink *link)
-{
-    AVFilterContext *ctx = link->src;
-    IDETContext *idet = ctx->priv;
-
-    do {
-        int ret;
-
-        if ((ret = ff_request_frame(link->src->inputs[0])))
-            return ret;
-    } while (!idet->cur);
-
-    return 0;
-}
-
 static av_cold void uninit(AVFilterContext *ctx)
 {
     IDETContext *idet = ctx->priv;
@@ -273,7 +258,13 @@ static int query_formats(AVFilterContext *ctx)
     return 0;
 }
 
-static av_cold int init(AVFilterContext *ctx, const char *args)
+static int config_output(AVFilterLink *outlink)
+{
+    outlink->flags |= FF_LINK_FLAG_REQUEST_LOOP;
+    return 0;
+}
+
+static av_cold int init(AVFilterContext *ctx)
 {
     IDETContext *idet = ctx->priv;
 
@@ -299,12 +290,10 @@ static const AVFilterPad idet_outputs[] = {
     {
         .name          = "default",
         .type          = AVMEDIA_TYPE_VIDEO,
-        .request_frame = request_frame,
+        .config_props  = config_output,
     },
     { NULL }
 };
-
-static const char *const shorthand[] = { "intl_thres", "prog_thres", NULL };
 
 AVFilter avfilter_vf_idet = {
     .name          = "idet",
@@ -317,5 +306,4 @@ AVFilter avfilter_vf_idet = {
     .inputs        = idet_inputs,
     .outputs       = idet_outputs,
     .priv_class    = &idet_class,
-    .shorthand     = shorthand,
 };

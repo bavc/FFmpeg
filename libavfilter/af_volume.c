@@ -56,7 +56,7 @@ static const AVOption volume_options[] = {
 
 AVFILTER_DEFINE_CLASS(volume);
 
-static av_cold int init(AVFilterContext *ctx, const char *args)
+static av_cold int init(AVFilterContext *ctx)
 {
     VolumeContext *vol = ctx->priv;
 
@@ -165,7 +165,7 @@ static inline void scale_samples_s32(uint8_t *dst, const uint8_t *src,
         smp_dst[i] = av_clipl_int32((((int64_t)smp_src[i] * volume + 128) >> 8));
 }
 
-static void volume_init(VolumeContext *vol)
+static av_cold void volume_init(VolumeContext *vol)
 {
     vol->samples_align = 1;
 
@@ -287,16 +287,14 @@ static const AVFilterPad avfilter_af_volume_outputs[] = {
     { NULL }
 };
 
-static const char *const shorthand[] = { "volume", "precision", NULL };
-
 AVFilter avfilter_af_volume = {
     .name           = "volume",
     .description    = NULL_IF_CONFIG_SMALL("Change input volume."),
     .query_formats  = query_formats,
     .priv_size      = sizeof(VolumeContext),
+    .priv_class     = &volume_class,
     .init           = init,
     .inputs         = avfilter_af_volume_inputs,
     .outputs        = avfilter_af_volume_outputs,
-    .priv_class     = &volume_class,
-    .shorthand      = shorthand,
+    .flags          = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
 };

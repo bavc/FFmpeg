@@ -27,6 +27,7 @@
  * The simplest mpeg encoder (well, it was the simplest!).
  */
 
+#include "libavutil/attributes.h"
 #include "libavutil/avassert.h"
 #include "libavutil/imgutils.h"
 #include "avcodec.h"
@@ -40,9 +41,6 @@
 #include "xvmc_internal.h"
 #include "thread.h"
 #include <limits.h>
-
-//#undef NDEBUG
-//#include <assert.h>
 
 static void dct_unquantize_mpeg1_intra_c(MpegEncContext *s,
                                    int16_t *block, int n, int qscale);
@@ -58,10 +56,6 @@ static void dct_unquantize_h263_intra_c(MpegEncContext *s,
                                   int16_t *block, int n, int qscale);
 static void dct_unquantize_h263_inter_c(MpegEncContext *s,
                                   int16_t *block, int n, int qscale);
-
-
-//#define DEBUG
-
 
 static const uint8_t ff_default_chroma_qscale_table[32] = {
 //   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
@@ -179,10 +173,10 @@ av_cold int ff_dct_common_init(MpegEncContext *s)
     ff_MPV_common_init_axp(s);
 #elif ARCH_ARM
     ff_MPV_common_init_arm(s);
-#elif HAVE_ALTIVEC
-    ff_MPV_common_init_altivec(s);
 #elif ARCH_BFIN
     ff_MPV_common_init_bfin(s);
+#elif ARCH_PPC
+    ff_MPV_common_init_ppc(s);
 #endif
 
     /* load & permutate scantables
@@ -453,6 +447,9 @@ void ff_mpeg_unref_picture(MpegEncContext *s, Picture *pic)
         av_frame_unref(&pic->f);
 
     av_buffer_unref(&pic->hwaccel_priv_buf);
+
+    if (pic->needs_realloc)
+        free_picture_tables(pic);
 
     memset((uint8_t*)pic + off, 0, sizeof(*pic) - off);
 }
@@ -1301,8 +1298,8 @@ void ff_MPV_common_end(MpegEncContext *s)
     s->linesize = s->uvlinesize = 0;
 }
 
-void ff_init_rl(RLTable *rl,
-                uint8_t static_store[2][2 * MAX_RUN + MAX_LEVEL + 3])
+av_cold void ff_init_rl(RLTable *rl,
+                        uint8_t static_store[2][2 * MAX_RUN + MAX_LEVEL + 3])
 {
     int8_t  max_level[MAX_RUN + 1], max_run[MAX_LEVEL + 1];
     uint8_t index_run[MAX_RUN + 1];
@@ -1353,7 +1350,7 @@ void ff_init_rl(RLTable *rl,
     }
 }
 
-void ff_init_vlc_rl(RLTable *rl)
+av_cold void ff_init_vlc_rl(RLTable *rl)
 {
     int i, q;
 
@@ -1523,6 +1520,8 @@ int ff_MPV_frame_start(MpegEncContext *s, AVCodecContext *avctx)
         }
     }
 
+    ff_mpeg_unref_picture(s, &s->current_picture);
+
     if (!s->encoding) {
         ff_release_unused_pictures(s, 1);
 
@@ -1570,7 +1569,6 @@ int ff_MPV_frame_start(MpegEncContext *s, AVCodecContext *avctx)
     //     s->current_picture_ptr->quality = s->new_picture_ptr->quality;
     s->current_picture_ptr->f.key_frame = s->pict_type == AV_PICTURE_TYPE_I;
 
-    ff_mpeg_unref_picture(s, &s->current_picture);
     if ((ret = ff_mpeg_ref_picture(s, &s->current_picture,
                                    s->current_picture_ptr)) < 0)
         return ret;
@@ -1702,7 +1700,7 @@ int ff_MPV_frame_start(MpegEncContext *s, AVCodecContext *avctx)
     }
 
     if (s->dct_error_sum) {
-        assert(s->avctx->noise_reduction && s->encoding);
+        av_assert2(s->avctx->noise_reduction && s->encoding);
         update_noise_reduction(s);
     }
 
@@ -1716,7 +1714,6 @@ int ff_MPV_frame_start(MpegEncContext *s, AVCodecContext *avctx)
  * frame has been coded/decoded. */
 void ff_MPV_frame_end(MpegEncContext *s)
 {
-    int i;
     /* redraw edges for the frame if decoding didn't complete */
     // just to make sure that all data is rendered.
     if (CONFIG_MPEG_XVMC_DECODER && s->avctx->xvmc_acceleration) {
@@ -1765,13 +1762,6 @@ void ff_MPV_frame_end(MpegEncContext *s)
     assert(i < MAX_PICTURE_COUNT);
 #endif
 
-    if (s->encoding) {
-        /* release non-reference frames */
-        for (i = 0; i < MAX_PICTURE_COUNT; i++) {
-            if (!s->picture[i].reference)
-                ff_mpeg_unref_picture(s, &s->picture[i]);
-        }
-    }
     // clear copies, to avoid confusion
 #if 0
     memset(&s->last_picture,    0, sizeof(Picture));
@@ -2189,7 +2179,7 @@ static inline int hpel_motion_lowres(MpegEncContext *s,
                                      int motion_x, int motion_y)
 {
     const int lowres   = s->avctx->lowres;
-    const int op_index = FFMIN(lowres, 2);
+    const int op_index = FFMIN(lowres, 3);
     const int s_mask   = (2 << lowres) - 1;
     int emu = 0;
     int sx, sy;
@@ -2242,7 +2232,7 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
     int mx, my, src_x, src_y, uvsrc_x, uvsrc_y, uvlinesize, linesize, sx, sy,
         uvsx, uvsy;
     const int lowres     = s->avctx->lowres;
-    const int op_index   = FFMIN(lowres-1+s->chroma_x_shift, 2);
+    const int op_index   = FFMIN(lowres-1+s->chroma_x_shift, 3);
     const int block_s    = 8>>lowres;
     const int s_mask     = (2 << lowres) - 1;
     const int h_edge_pos = s->h_edge_pos >> lowres;
@@ -2308,7 +2298,7 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
     ptr_cb = ref_picture[1] + uvsrc_y * uvlinesize + uvsrc_x;
     ptr_cr = ref_picture[2] + uvsrc_y * uvlinesize + uvsrc_x;
 
-    if ((unsigned) src_x > FFMAX( h_edge_pos - (!!sx) - 2 * block_s,       0) ||
+    if ((unsigned) src_x > FFMAX( h_edge_pos - (!!sx) - 2 * block_s,       0) || uvsrc_y<0 ||
         (unsigned) src_y > FFMAX((v_edge_pos >> field_based) - (!!sy) - h, 0)) {
         s->vdsp.emulated_edge_mc(s->edge_emu_buffer, ptr_y,
                                 linesize >> field_based, 17, 17 + field_based,
@@ -2348,11 +2338,12 @@ static av_always_inline void mpeg_motion_lowres(MpegEncContext *s,
     pix_op[lowres - 1](dest_y, ptr_y, linesize, h, sx, sy);
 
     if (!CONFIG_GRAY || !(s->flags & CODEC_FLAG_GRAY)) {
+        int hc = s->chroma_y_shift ? (h+1-bottom_field)>>1 : h;
         uvsx = (uvsx << 2) >> lowres;
         uvsy = (uvsy << 2) >> lowres;
-        if (h >> s->chroma_y_shift) {
-            pix_op[op_index](dest_cb, ptr_cb, uvlinesize, h >> s->chroma_y_shift, uvsx, uvsy);
-            pix_op[op_index](dest_cr, ptr_cr, uvlinesize, h >> s->chroma_y_shift, uvsx, uvsy);
+        if (hc) {
+            pix_op[op_index](dest_cb, ptr_cb, uvlinesize, hc, uvsx, uvsy);
+            pix_op[op_index](dest_cr, ptr_cr, uvlinesize, hc, uvsx, uvsy);
         }
     }
     // FIXME h261 lowres loop filter
@@ -2365,7 +2356,7 @@ static inline void chroma_4mv_motion_lowres(MpegEncContext *s,
                                             int mx, int my)
 {
     const int lowres     = s->avctx->lowres;
-    const int op_index   = FFMIN(lowres, 2);
+    const int op_index   = FFMIN(lowres, 3);
     const int block_s    = 8 >> lowres;
     const int s_mask     = (2 << lowres) - 1;
     const int h_edge_pos = s->h_edge_pos >> lowres + 1;
@@ -3074,6 +3065,10 @@ void ff_mpeg_flush(AVCodecContext *avctx){
         ff_mpeg_unref_picture(s, &s->picture[i]);
     s->current_picture_ptr = s->last_picture_ptr = s->next_picture_ptr = NULL;
 
+    ff_mpeg_unref_picture(s, &s->current_picture);
+    ff_mpeg_unref_picture(s, &s->last_picture);
+    ff_mpeg_unref_picture(s, &s->next_picture);
+
     s->mb_x= s->mb_y= 0;
     s->closed_gop= 0;
 
@@ -3240,7 +3235,7 @@ static void dct_unquantize_h263_intra_c(MpegEncContext *s,
     int i, level, qmul, qadd;
     int nCoeffs;
 
-    assert(s->block_last_index[n]>=0);
+    av_assert2(s->block_last_index[n]>=0);
 
     qmul = qscale << 1;
 
@@ -3274,7 +3269,7 @@ static void dct_unquantize_h263_inter_c(MpegEncContext *s,
     int i, level, qmul, qadd;
     int nCoeffs;
 
-    assert(s->block_last_index[n]>=0);
+    av_assert2(s->block_last_index[n]>=0);
 
     qadd = (qscale - 1) | 1;
     qmul = qscale << 1;

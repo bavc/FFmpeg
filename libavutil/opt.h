@@ -232,6 +232,7 @@ enum AVOptionType{
     AV_OPT_TYPE_SAMPLE_FMT = MKBETAG('S','F','M','T'),
     AV_OPT_TYPE_VIDEO_RATE = MKBETAG('V','R','A','T'), ///< offset must point to AVRational
     AV_OPT_TYPE_DURATION   = MKBETAG('D','U','R',' '),
+    AV_OPT_TYPE_COLOR      = MKBETAG('C','O','L','R'),
 #if FF_API_OLD_AVOPTIONS
     FF_OPT_TYPE_FLAGS = 0,
     FF_OPT_TYPE_INT,
@@ -656,6 +657,22 @@ int av_opt_set_image_size(void *obj, const char *name, int w, int h, int search_
 int av_opt_set_pixel_fmt (void *obj, const char *name, enum AVPixelFormat fmt, int search_flags);
 int av_opt_set_sample_fmt(void *obj, const char *name, enum AVSampleFormat fmt, int search_flags);
 int av_opt_set_video_rate(void *obj, const char *name, AVRational val, int search_flags);
+
+/**
+ * Set a binary option to an integer list.
+ *
+ * @param obj    AVClass object to set options on
+ * @param name   name of the binary option
+ * @param val    pointer to an integer list (must have the correct type with
+ *               regard to the contents of the list)
+ * @param term   list terminator (usually 0 or -1)
+ * @param flags  search flags
+ */
+#define av_opt_set_int_list(obj, name, val, term, flags) \
+    (av_int_list_length(val, term) > INT_MAX / sizeof(*(val)) ? \
+     AVERROR(EINVAL) : \
+     av_opt_set_bin(obj, name, (const uint8_t *)(val), \
+                    av_int_list_length(val, term) * sizeof(*(val)), flags))
 /**
  * @}
  */

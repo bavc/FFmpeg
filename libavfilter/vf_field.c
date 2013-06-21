@@ -55,12 +55,8 @@ static int config_props_output(AVFilterLink *outlink)
     AVFilterContext *ctx = outlink->src;
     FieldContext *field = ctx->priv;
     AVFilterLink *inlink = ctx->inputs[0];
-    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(inlink->format);
-    int i;
 
-    for (i = 0; i < desc->nb_components; i++)
-        field->nb_planes = FFMAX(field->nb_planes, desc->comp[i].plane);
-    field->nb_planes++;
+    field->nb_planes = av_pix_fmt_count_planes(outlink->format);
 
     outlink->w = inlink->w;
     outlink->h = (inlink->h + (field->type == FIELD_TYPE_TOP)) / 2;
@@ -107,8 +103,6 @@ static const AVFilterPad field_outputs[] = {
     { NULL }
 };
 
-static const char *const shorthand[] = { "type", NULL };
-
 AVFilter avfilter_vf_field = {
     .name          = "field",
     .description   = NULL_IF_CONFIG_SMALL("Extract a field from the input video."),
@@ -117,5 +111,4 @@ AVFilter avfilter_vf_field = {
     .inputs        = field_inputs,
     .outputs       = field_outputs,
     .priv_class    = &field_class,
-    .shorthand     = shorthand,
 };

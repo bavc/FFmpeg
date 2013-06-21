@@ -25,7 +25,7 @@
  * MPEG-1/2 decoder
  */
 
-//#define DEBUG
+#include "libavutil/attributes.h"
 #include "libavutil/internal.h"
 #include "internal.h"
 #include "avcodec.h"
@@ -1098,6 +1098,7 @@ static const enum AVPixelFormat mpeg1_hwaccel_pixfmt_list_420[] = {
 #endif
 #if CONFIG_MPEG1_VDPAU_HWACCEL
     AV_PIX_FMT_VDPAU_MPEG1,
+    AV_PIX_FMT_VDPAU,
 #endif
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_NONE
@@ -1110,6 +1111,7 @@ static const enum AVPixelFormat mpeg2_hwaccel_pixfmt_list_420[] = {
 #endif
 #if CONFIG_MPEG2_VDPAU_HWACCEL
     AV_PIX_FMT_VDPAU_MPEG2,
+    AV_PIX_FMT_VDPAU,
 #endif
 #if CONFIG_MPEG2_DXVA2_HWACCEL
     AV_PIX_FMT_DXVA2_VLD,
@@ -1131,7 +1133,7 @@ static enum AVPixelFormat mpeg_get_pixelformat(AVCodecContext *avctx)
     MpegEncContext *s = &s1->mpeg_enc_ctx;
 
     if(s->chroma_format < 2) {
-        return avctx->get_format(avctx,
+        return ff_thread_get_format(avctx,
                                 avctx->codec_id == AV_CODEC_ID_MPEG1VIDEO ?
                                 mpeg1_hwaccel_pixfmt_list_420 :
                                 mpeg2_hwaccel_pixfmt_list_420);
@@ -2119,7 +2121,7 @@ static int decode_chunks(AVCodecContext *avctx,
     const uint8_t *buf_ptr = buf;
     const uint8_t *buf_end = buf + buf_size;
     int ret, input_size;
-    int last_code = 0;
+    int last_code = 0, skip_frame = 0;
     int picture_start_code_seen = 0;
 
     for (;;) {
@@ -2127,7 +2129,7 @@ static int decode_chunks(AVCodecContext *avctx,
         uint32_t start_code = -1;
         buf_ptr = avpriv_find_start_code(buf_ptr, buf_end, &start_code);
         if (start_code > 0x1ff) {
-            if (s2->pict_type != AV_PICTURE_TYPE_B || avctx->skip_frame <= AVDISCARD_DEFAULT) {
+            if (!skip_frame) {
                 if (HAVE_THREADS && (avctx->active_thread_type & FF_THREAD_SLICE)) {
                     int i;
                     av_assert0(avctx->thread_count > 1);
@@ -2314,20 +2316,27 @@ static int decode_chunks(AVCodecContext *avctx,
                 if (s2->last_picture_ptr == NULL) {
                 /* Skip B-frames if we do not have reference frames and gop is not closed */
                     if (s2->pict_type == AV_PICTURE_TYPE_B) {
-                        if (!s2->closed_gop)
+                        if (!s2->closed_gop) {
+                            skip_frame = 1;
                             break;
+                        }
                     }
                 }
                 if (s2->pict_type == AV_PICTURE_TYPE_I || (s2->flags2 & CODEC_FLAG2_SHOW_ALL))
                     s->sync=1;
                 if (s2->next_picture_ptr == NULL) {
                 /* Skip P-frames if we do not have a reference frame or we have an invalid header. */
-                    if (s2->pict_type == AV_PICTURE_TYPE_P && !s->sync) break;
+                    if (s2->pict_type == AV_PICTURE_TYPE_P && !s->sync) {
+                        skip_frame = 1;
+                        break;
+                    }
                 }
                 if ((avctx->skip_frame >= AVDISCARD_NONREF && s2->pict_type == AV_PICTURE_TYPE_B) ||
                     (avctx->skip_frame >= AVDISCARD_NONKEY && s2->pict_type != AV_PICTURE_TYPE_I) ||
-                     avctx->skip_frame >= AVDISCARD_ALL)
+                     avctx->skip_frame >= AVDISCARD_ALL) {
+                    skip_frame = 1;
                     break;
+                }
 
                 if (!s->mpeg_enc_ctx_allocated)
                     break;
@@ -2345,6 +2354,7 @@ static int decode_chunks(AVCodecContext *avctx,
                 }
 
                 if (s2->first_slice) {
+                    skip_frame = 0;
                     s2->first_slice = 0;
                     if (mpeg_field_start(s2, buf, buf_size) < 0)
                         return -1;
@@ -2470,7 +2480,7 @@ static void flush(AVCodecContext *avctx)
     ff_mpeg_flush(avctx);
 }
 
-static int mpeg_decode_end(AVCodecContext *avctx)
+static av_cold int mpeg_decode_end(AVCodecContext *avctx)
 {
     Mpeg1Context *s = avctx->priv_data;
 

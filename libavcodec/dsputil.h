@@ -34,9 +34,6 @@
 #include "avcodec.h"
 #include "rnd_avg.h"
 
-
-//#define DEBUG
-
 /* encoding scans */
 extern const uint8_t ff_alternate_horizontal_scan[64];
 extern const uint8_t ff_alternate_vertical_scan[64];
@@ -315,6 +312,7 @@ typedef struct DSPContext {
 
 void ff_dsputil_static_init(void);
 void ff_dsputil_init(DSPContext* p, AVCodecContext *avctx);
+void avpriv_dsputil_init(DSPContext* p, AVCodecContext *avctx);
 attribute_deprecated void dsputil_init(DSPContext* c, AVCodecContext *avctx);
 
 int ff_check_alignment(void);

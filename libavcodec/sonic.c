@@ -596,10 +596,6 @@ static av_cold int sonic_encode_init(AVCodecContext *avctx)
     av_log(avctx, AV_LOG_INFO, "Sonic: ver: %d ls: %d dr: %d taps: %d block: %d frame: %d downsamp: %d\n",
         version, s->lossless, s->decorrelation, s->num_taps, s->block_align, s->frame_size, s->downsampling);
 
-    avctx->coded_frame = avcodec_alloc_frame();
-    if (!avctx->coded_frame)
-        return AVERROR(ENOMEM);
-    avctx->coded_frame->key_frame = 1;
     avctx->frame_size = s->block_align*s->downsampling;
 
     return 0;
@@ -609,8 +605,6 @@ static av_cold int sonic_encode_close(AVCodecContext *avctx)
 {
     SonicContext *s = avctx->priv_data;
     int i;
-
-    av_freep(&avctx->coded_frame);
 
     for (i = 0; i < s->channels; i++)
         av_free(s->coded_samples[i]);
@@ -980,6 +974,7 @@ AVCodec ff_sonic_encoder = {
     .priv_data_size = sizeof(SonicContext),
     .init           = sonic_encode_init,
     .encode2        = sonic_encode_frame,
+    .sample_fmts    = (const enum AVSampleFormat[]){ AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_NONE },
     .capabilities   = CODEC_CAP_EXPERIMENTAL,
     .close          = sonic_encode_close,
     .long_name = NULL_IF_CONFIG_SMALL("Sonic"),
@@ -994,6 +989,7 @@ AVCodec ff_sonic_ls_encoder = {
     .priv_data_size = sizeof(SonicContext),
     .init           = sonic_encode_init,
     .encode2        = sonic_encode_frame,
+    .sample_fmts    = (const enum AVSampleFormat[]){ AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_NONE },
     .capabilities   = CODEC_CAP_EXPERIMENTAL,
     .close          = sonic_encode_close,
     .long_name = NULL_IF_CONFIG_SMALL("Sonic lossless"),

@@ -172,11 +172,15 @@ typedef struct Picture{
     int mb_var_sum;             ///< sum of MB variance for current frame
     int mc_mb_var_sum;          ///< motion compensated MB variance for current frame
 
-    int b_frame_score;          /* */
+    int b_frame_score;
     int needs_realloc;          ///< Picture needs to be reallocated (eg due to a frame size change)
 
     int reference;
     int shared;
+
+    int crop;
+    int crop_left;
+    int crop_top;
 } Picture;
 
 /**
@@ -800,8 +804,8 @@ void ff_dct_encode_init_x86(MpegEncContext *s);
 void ff_MPV_common_init_x86(MpegEncContext *s);
 void ff_MPV_common_init_axp(MpegEncContext *s);
 void ff_MPV_common_init_arm(MpegEncContext *s);
-void ff_MPV_common_init_altivec(MpegEncContext *s);
 void ff_MPV_common_init_bfin(MpegEncContext *s);
+void ff_MPV_common_init_ppc(MpegEncContext *s);
 void ff_clean_intra_table_entries(MpegEncContext *s);
 void ff_draw_horiz_band(AVCodecContext *avctx, DSPContext *dsp, Picture *cur,
                         Picture *last, int y, int h, int picture_structure,

@@ -275,6 +275,9 @@ static int ref_picture(H264Context *h, Picture *dst, Picture *src)
     dst->needs_realloc           = src->needs_realloc;
     dst->reference               = src->reference;
     dst->sync                    = src->sync;
+    dst->crop                    = src->crop;
+    dst->crop_left               = src->crop_left;
+    dst->crop_top                = src->crop_top;
 
     return 0;
 fail:
@@ -349,6 +352,9 @@ static int alloc_picture(H264Context *h, Picture *pic)
 
     h->linesize   = pic->f.linesize[0];
     h->uvlinesize = pic->f.linesize[1];
+    pic->crop     = h->sps.crop;
+    pic->crop_top = h->sps.crop_top;
+    pic->crop_left= h->sps.crop_left;
 
     if (h->avctx->hwaccel) {
         const AVHWAccel *hwaccel = h->avctx->hwaccel;
@@ -1459,9 +1465,6 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx)
 
     h->avctx = avctx;
 
-    h->width    = h->avctx->width;
-    h->height   = h->avctx->height;
-
     h->bit_depth_luma    = 8;
     h->chroma_format_idc = 1;
 
@@ -1475,11 +1478,11 @@ av_cold int ff_h264_decode_init(AVCodecContext *avctx)
     ff_h264_pred_init(&h->hpc, h->avctx->codec_id, 8, 1);
 
     h->dequant_coeff_pps = -1;
+    h->current_sps_id = -1;
 
-    if (CONFIG_ERROR_RESILIENCE) {
-        /* needed so that IDCT permutation is known early */
+    /* needed so that IDCT permutation is known early */
+    if (CONFIG_ERROR_RESILIENCE)
         ff_dsputil_init(&h->dsp, h->avctx);
-    }
     ff_videodsp_init(&h->vdsp, 8);
 
     memset(h->pps.scaling_matrix4, 16, 6 * 16 * sizeof(uint8_t));
@@ -1676,6 +1679,10 @@ static int decode_update_thread_context(AVCodecContext *dst,
 
         memset(&h->er, 0, sizeof(h->er));
         memset(&h->me, 0, sizeof(h->me));
+        memset(&h->mb, 0, sizeof(h->mb));
+        memset(&h->mb_luma_dc, 0, sizeof(h->mb_luma_dc));
+        memset(&h->mb_padding, 0, sizeof(h->mb_padding));
+
         h->avctx = dst;
         h->DPB   = NULL;
         h->qscale_table_pool = NULL;
@@ -2687,11 +2694,10 @@ static void flush_dpb(AVCodecContext *avctx)
     h->parse_context.last_index        = 0;
 }
 
-static int init_poc(H264Context *h)
+int ff_init_poc(H264Context *h, int pic_field_poc[2], int *pic_poc)
 {
     const int max_frame_num = 1 << h->sps.log2_max_frame_num;
     int field_poc[2];
-    Picture *cur = h->cur_pic_ptr;
 
     h->frame_num_offset = h->prev_frame_num_offset;
     if (h->frame_num < h->prev_frame_num)
@@ -2756,10 +2762,11 @@ static int init_poc(H264Context *h)
     }
 
     if (h->picture_structure != PICT_BOTTOM_FIELD)
-        h->cur_pic_ptr->field_poc[0] = field_poc[0];
+        pic_field_poc[0] = field_poc[0];
     if (h->picture_structure != PICT_TOP_FIELD)
-        h->cur_pic_ptr->field_poc[1] = field_poc[1];
-    cur->poc = FFMIN(cur->field_poc[0], cur->field_poc[1]);
+        pic_field_poc[1] = field_poc[1];
+    if (pic_poc)
+        *pic_poc = FFMIN(pic_field_poc[0], pic_field_poc[1]);
 
     return 0;
 }
@@ -2956,9 +2963,9 @@ static int h264_set_parameter_from_sps(H264Context *h)
             ff_h264qpel_init(&h->h264qpel, h->sps.bit_depth_luma);
             ff_h264_pred_init(&h->hpc, h->avctx->codec_id, h->sps.bit_depth_luma,
                               h->sps.chroma_format_idc);
-            if (CONFIG_ERROR_RESILIENCE) {
+
+            if (CONFIG_ERROR_RESILIENCE)
                 ff_dsputil_init(&h->dsp, h->avctx);
-            }
             ff_videodsp_init(&h->vdsp, h->sps.bit_depth_luma);
         } else {
             av_log(h->avctx, AV_LOG_ERROR, "Unsupported bit depth: %d\n",
@@ -3040,7 +3047,7 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
             for (i=0; fmt[i] != AV_PIX_FMT_NONE; i++)
                 if (fmt[i] == h->avctx->pix_fmt && !force_callback)
                     return fmt[i];
-            return h->avctx->get_format(h->avctx, fmt);
+            return ff_thread_get_format(h->avctx, fmt);
         }
         break;
     default:
@@ -3050,26 +3057,50 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
     }
 }
 
+/* export coded and cropped frame dimensions to AVCodecContext */
+static int init_dimensions(H264Context *h)
+{
+    int width  = h->width  - (h->sps.crop_right + h->sps.crop_left);
+    int height = h->height - (h->sps.crop_top   + h->sps.crop_bottom);
+    av_assert0(h->sps.crop_right + h->sps.crop_left < (unsigned)h->width);
+    av_assert0(h->sps.crop_top + h->sps.crop_bottom < (unsigned)h->height);
+
+    /* handle container cropping */
+    if (!h->sps.crop &&
+        FFALIGN(h->avctx->width,  16) == h->width &&
+        FFALIGN(h->avctx->height, 16) == h->height) {
+        width  = h->avctx->width;
+        height = h->avctx->height;
+    }
+
+    if (width <= 0 || height <= 0) {
+        av_log(h->avctx, AV_LOG_ERROR, "Invalid cropped dimensions: %dx%d.\n",
+               width, height);
+        if (h->avctx->err_recognition & AV_EF_EXPLODE)
+            return AVERROR_INVALIDDATA;
+
+        av_log(h->avctx, AV_LOG_WARNING, "Ignoring cropping information.\n");
+        h->sps.crop_bottom = h->sps.crop_top = h->sps.crop_right = h->sps.crop_left = 0;
+        h->sps.crop = 0;
+
+        width  = h->width;
+        height = h->height;
+    }
+
+    h->avctx->coded_width  = h->width;
+    h->avctx->coded_height = h->height;
+    h->avctx->width        = width;
+    h->avctx->height       = height;
+
+    return 0;
+}
+
 static int h264_slice_header_init(H264Context *h, int reinit)
 {
     int nb_slices = (HAVE_THREADS &&
                      h->avctx->active_thread_type & FF_THREAD_SLICE) ?
                     h->avctx->thread_count : 1;
     int i;
-
-    if(    FFALIGN(h->avctx->width , 16                                 ) == h->width
-        && FFALIGN(h->avctx->height, 16*(2 - h->sps.frame_mbs_only_flag)) == h->height
-        && !h->sps.crop_right && !h->sps.crop_bottom
-        && (h->avctx->width != h->width || h->avctx->height && h->height)
-    ) {
-        av_log(h->avctx, AV_LOG_DEBUG, "Using externally provided dimensions\n");
-        h->avctx->coded_width  = h->width;
-        h->avctx->coded_height = h->height;
-    } else{
-        avcodec_set_dimensions(h->avctx, h->width, h->height);
-        h->avctx->width  -= (2>>CHROMA444(h))*FFMIN(h->sps.crop_right, (8<<CHROMA444(h))-1);
-        h->avctx->height -= (1<<h->chroma_y_shift)*FFMIN(h->sps.crop_bottom, (16>>h->chroma_y_shift)-1) * (2 - h->sps.frame_mbs_only_flag);
-    }
 
     h->avctx->sample_aspect_ratio = h->sps.sar;
     av_assert0(h->avctx->sample_aspect_ratio.den);
@@ -3279,7 +3310,10 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
                      || 16*h->sps.mb_height * (2 - h->sps.frame_mbs_only_flag) != h->avctx->coded_height
                      || h->avctx->bits_per_raw_sample != h->sps.bit_depth_luma
                      || h->cur_chroma_format_idc != h->sps.chroma_format_idc
-                     || av_cmp_q(h->sps.sar, h->avctx->sample_aspect_ratio)));
+                     || av_cmp_q(h->sps.sar, h->avctx->sample_aspect_ratio)
+                     || h->mb_width  != h->sps.mb_width
+                     || h->mb_height != h->sps.mb_height * (2 - h->sps.frame_mbs_only_flag)
+                    ));
     if (h0->avctx->pix_fmt != get_pixel_format(h0, 0))
         must_reinit = 1;
 
@@ -3295,6 +3329,10 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
     h->width  = 16 * h->mb_width;
     h->height = 16 * h->mb_height;
 
+    ret = init_dimensions(h);
+    if (ret < 0)
+        return ret;
+
     if (h->sps.video_signal_type_present_flag) {
         h->avctx->color_range = h->sps.full_range>0 ? AVCOL_RANGE_JPEG
                                                     : AVCOL_RANGE_MPEG;
@@ -3308,9 +3346,10 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
     }
 
     if (h->context_initialized &&
-        (
-         needs_reinit                   ||
-         must_reinit)) {
+        (h->width  != h->avctx->coded_width   ||
+         h->height != h->avctx->coded_height  ||
+         must_reinit ||
+         needs_reinit)) {
 
         if (h != h0) {
             av_log(h->avctx, AV_LOG_ERROR, "changing width/height on "
@@ -3611,7 +3650,7 @@ static int decode_slice_header(H264Context *h, H264Context *h0)
             h->delta_poc[1] = get_se_golomb(&h->gb);
     }
 
-    init_poc(h);
+    ff_init_poc(h, h->cur_pic_ptr->field_poc, &h->cur_pic_ptr->poc);
 
     if (h->pps.redundant_pic_cnt_present)
         h->redundant_pic_count = get_ue_golomb(&h->gb);
@@ -4738,7 +4777,7 @@ again:
                 break;
             case NAL_SPS:
                 init_get_bits(&h->gb, ptr, bit_length);
-                if (ff_h264_decode_seq_parameter_set(h) < 0 && (h->is_avc ? (nalsize != consumed) && nalsize : 1)) {
+                if (ff_h264_decode_seq_parameter_set(h) < 0 && (h->is_avc ? nalsize : 1)) {
                     av_log(h->avctx, AV_LOG_DEBUG,
                            "SPS decoding failure, trying again with the complete NAL\n");
                     if (h->is_avc)
@@ -4814,6 +4853,27 @@ static int get_consumed_bytes(int pos, int buf_size)
     return pos;
 }
 
+static int output_frame(H264Context *h, AVFrame *dst, Picture *srcp)
+{
+    AVFrame *src = &srcp->f;
+    int i;
+    int ret = av_frame_ref(dst, src);
+    if (ret < 0)
+        return ret;
+
+    if (!srcp->crop)
+        return 0;
+
+    for (i = 0; i < 3; i++) {
+        int hshift = (i > 0) ? h->chroma_x_shift : 0;
+        int vshift = (i > 0) ? h->chroma_y_shift : 0;
+        int off    = ((srcp->crop_left >> hshift) << h->pixel_shift) +
+            (srcp->crop_top  >> vshift) * dst->linesize[i];
+        dst->data[i] += off;
+    }
+    return 0;
+}
+
 static int decode_frame(AVCodecContext *avctx, void *data,
                         int *got_frame, AVPacket *avpkt)
 {
@@ -4853,7 +4913,8 @@ static int decode_frame(AVCodecContext *avctx, void *data,
 
         if (out) {
             out->reference &= ~DELAYED_PIC_REF;
-            if ((ret = av_frame_ref(pict, &out->f)) < 0)
+            ret = output_frame(h, pict, out);
+            if (ret < 0)
                 return ret;
             *got_frame = 1;
         }
@@ -4910,7 +4971,8 @@ not_extra:
         /* Wait for second field. */
         *got_frame = 0;
         if (h->next_output_pic && (h->next_output_pic->sync || h->sync>1)) {
-            if ((ret = av_frame_ref(pict, &h->next_output_pic->f)) < 0)
+            ret = output_frame(h, pict, h->next_output_pic);
+            if (ret < 0)
                 return ret;
             *got_frame = 1;
             if (CONFIG_MPEGVIDEO) {

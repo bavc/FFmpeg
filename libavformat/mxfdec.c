@@ -43,8 +43,6 @@
  * Only tracks with associated descriptors will be decoded. "Highly Desirable" SMPTE 377M D.1
  */
 
-//#define DEBUG
-
 #include "libavutil/aes.h"
 #include "libavutil/avassert.h"
 #include "libavutil/mathematics.h"
@@ -1660,18 +1658,22 @@ static int mxf_uid_to_str(UID uid, char **str)
 
 static int mxf_timestamp_to_str(uint64_t timestamp, char **str)
 {
-    struct tm time;
+    struct tm time = {0};
     time.tm_year = (timestamp >> 48) - 1900;
-    time.tm_mon  = (timestamp >> 48 & 0xF) - 1;
-    time.tm_mday = (timestamp >> 32 & 0xF);
-    time.tm_hour = (timestamp >> 24 & 0XF);
-    time.tm_min  = (timestamp >> 16 & 0xF);
-    time.tm_sec  = (timestamp >> 8  & 0xF);
+    time.tm_mon  = (timestamp >> 40 & 0xFF) - 1;
+    time.tm_mday = (timestamp >> 32 & 0xFF);
+    time.tm_hour = (timestamp >> 24 & 0xFF);
+    time.tm_min  = (timestamp >> 16 & 0xFF);
+    time.tm_sec  = (timestamp >> 8  & 0xFF);
+
+    /* ensure month/day are valid */
+    time.tm_mon  = FFMAX(time.tm_mon, 0);
+    time.tm_mday = FFMAX(time.tm_mday, 1);
 
     *str = av_mallocz(32);
     if (!*str)
         return AVERROR(ENOMEM);
-    strftime(*str, 32, "%F %T", &time);
+    strftime(*str, 32, "%Y-%m-%d %H:%M:%S", &time);
 
     return 0;
 }
@@ -2206,10 +2208,8 @@ static int mxf_read_packet_old(AVFormatContext *s, AVPacket *pkt)
     KLVPacket klv;
     MXFContext *mxf = s->priv_data;
 
-    while (!url_feof(s->pb)) {
+    while (klv_read_packet(&klv, s->pb) == 0) {
         int ret;
-        if (klv_read_packet(&klv, s->pb) < 0)
-            return -1;
         PRINT_KEY(s, "read packet", klv.key);
         av_dlog(s, "size %"PRIu64" offset %#"PRIx64"\n", klv.length, klv.offset);
         if (IS_KLV_KEY(klv.key, mxf_encrypted_triplet_key)) {
@@ -2294,7 +2294,7 @@ static int mxf_read_packet_old(AVFormatContext *s, AVPacket *pkt)
         skip:
             avio_skip(s->pb, klv.length);
     }
-    return AVERROR_EOF;
+    return url_feof(s->pb) ? AVERROR_EOF : -1;
 }
 
 static int mxf_read_packet(AVFormatContext *s, AVPacket *pkt)
@@ -2437,6 +2437,7 @@ static int mxf_read_seek(AVFormatContext *s, int stream_index, int64_t sample_ti
     MXFContext* mxf = s->priv_data;
     int64_t seekpos;
     int i, ret;
+    int64_t ret64;
     MXFIndexTable *t;
     MXFTrack *source_track = st->priv_data;
 
@@ -2451,9 +2452,10 @@ static int mxf_read_seek(AVFormatContext *s, int stream_index, int64_t sample_ti
         sample_time = 0;
     seconds = av_rescale(sample_time, st->time_base.num, st->time_base.den);
 
-    if ((ret = avio_seek(s->pb, (s->bit_rate * seconds) >> 3, SEEK_SET)) < 0)
-        return ret;
+    if ((ret64 = avio_seek(s->pb, (s->bit_rate * seconds) >> 3, SEEK_SET)) < 0)
+        return ret64;
     ff_update_cur_dts(s, st, sample_time);
+    mxf->current_edit_unit = sample_time;
     } else {
         t = &mxf->index_tables[0];
 

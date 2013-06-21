@@ -37,7 +37,6 @@
 #include "libavcodec/avcodec.h"
 
 #include "libavfilter/avfilter.h"
-#include "libavfilter/avfiltergraph.h"
 
 #include "libavutil/avutil.h"
 #include "libavutil/dict.h"
@@ -179,6 +178,8 @@ typedef struct OptionsContext {
     int        nb_passlogfiles;
     SpecifierOpt *guess_layout_max;
     int        nb_guess_layout_max;
+    SpecifierOpt *apad;
+    int        nb_apad;
 } OptionsContext;
 
 typedef struct InputFilter {
@@ -321,6 +322,8 @@ typedef struct OutputStream {
     /* pts of the first frame encoded for this stream, used for limiting
      * recording time */
     int64_t first_pts;
+    /* dts of the last packet sent to the muxer */
+    int64_t last_mux_dts;
     AVBitStreamFilterContext *bitstream_filters;
     AVCodec *enc;
     int64_t max_frames;
@@ -355,6 +358,7 @@ typedef struct OutputStream {
     AVDictionary *opts;
     AVDictionary *swr_opts;
     AVDictionary *resample_opts;
+    char *apad;
     int finished;        /* no more packets should be written for this stream */
     int unavailable;                     /* true if the steram is unavailable (possibly temporarily) */
     int stream_copy;

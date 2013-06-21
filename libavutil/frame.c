@@ -126,10 +126,14 @@ static int get_video_buffer(AVFrame *frame, int align)
         return ret;
 
     if (!frame->linesize[0]) {
-        ret = av_image_fill_linesizes(frame->linesize, frame->format,
-                                      frame->width);
-        if (ret < 0)
-            return ret;
+        for(i=1; i<=align; i+=i) {
+            ret = av_image_fill_linesizes(frame->linesize, frame->format,
+                                          FFALIGN(frame->width, i));
+            if (ret < 0)
+                return ret;
+            if (!(frame->linesize[0] & (align-1)))
+                break;
+        }
 
         for (i = 0; i < 4 && frame->linesize[i]; i++)
             frame->linesize[i] = FFALIGN(frame->linesize[i], align);
@@ -138,7 +142,7 @@ static int get_video_buffer(AVFrame *frame, int align)
     for (i = 0; i < 4 && frame->linesize[i]; i++) {
         int h = FFALIGN(frame->height, 32);
         if (i == 1 || i == 2)
-            h = -((-h) >> desc->log2_chroma_h);
+            h = FF_CEIL_RSHIFT(h, desc->log2_chroma_h);
 
         frame->buf[i] = av_buffer_alloc(frame->linesize[i] * h + 16);
         if (!frame->buf[i])
@@ -146,7 +150,7 @@ static int get_video_buffer(AVFrame *frame, int align)
 
         frame->data[i] = frame->buf[i]->data;
     }
-    if (desc->flags & PIX_FMT_PAL || desc->flags & PIX_FMT_PSEUDOPAL) {
+    if (desc->flags & AV_PIX_FMT_FLAG_PAL || desc->flags & AV_PIX_FMT_FLAG_PSEUDOPAL) {
         av_buffer_unref(&frame->buf[1]);
         frame->buf[1] = av_buffer_alloc(1024);
         if (!frame->buf[1])
@@ -259,7 +263,9 @@ int av_frame_ref(AVFrame *dst, AVFrame *src)
     }
 
     /* ref the buffers */
-    for (i = 0; i < FF_ARRAY_ELEMS(src->buf) && src->buf[i]; i++) {
+    for (i = 0; i < FF_ARRAY_ELEMS(src->buf); i++) {
+        if (!src->buf[i])
+            continue;
         dst->buf[i] = av_buffer_ref(src->buf[i]);
         if (!dst->buf[i]) {
             ret = AVERROR(ENOMEM);
@@ -366,8 +372,9 @@ int av_frame_is_writable(AVFrame *frame)
     if (!frame->buf[0])
         return 0;
 
-    for (i = 0; i < FF_ARRAY_ELEMS(frame->buf) && frame->buf[i]; i++)
-        ret &= !!av_buffer_is_writable(frame->buf[i]);
+    for (i = 0; i < FF_ARRAY_ELEMS(frame->buf); i++)
+        if (frame->buf[i])
+            ret &= !!av_buffer_is_writable(frame->buf[i]);
     for (i = 0; i < frame->nb_extended_buf; i++)
         ret &= !!av_buffer_is_writable(frame->extended_buf[i]);
 

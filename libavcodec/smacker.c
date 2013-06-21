@@ -257,7 +257,7 @@ static int smacker_decode_header_tree(SmackVContext *smk, GetBitContext *gb, int
     ctx.recode2 = tmp2.values;
     ctx.last = last;
 
-    huff.length = ((size + 3) >> 2) + 3;
+    huff.length = ((size + 3) >> 2) + 4;
     huff.maxlength = 0;
     huff.current = 0;
     huff.values = av_mallocz(huff.length * sizeof(int));
@@ -646,9 +646,16 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
         h[i].lengths = av_mallocz(256 * sizeof(int));
         h[i].values = av_mallocz(256 * sizeof(int));
         skip_bits1(&gb);
-        res = smacker_decode_tree(&gb, &h[i], 0, 0);
-        if (res < 0)
-            return res;
+        if (smacker_decode_tree(&gb, &h[i], 0, 0) < 0) {
+            for (; i >= 0; i--) {
+                if (vlc[i].table)
+                    ff_free_vlc(&vlc[i]);
+                av_free(h[i].bits);
+                av_free(h[i].lengths);
+                av_free(h[i].values);
+            }
+            return AVERROR_INVALIDDATA;
+        }
         skip_bits1(&gb);
         if(h[i].current > 1) {
             res = init_vlc(&vlc[i], SMKTREE_BITS, h[i].length,
@@ -660,6 +667,7 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
             }
         }
     }
+    /* this codec relies on wraparound instead of clipping audio */
     if(bits) { //decode 16-bit data
         for(i = stereo; i >= 0; i--)
             pred[i] = sign_extend(av_bswap16(get_bits(&gb, 16)), 16);
@@ -688,7 +696,7 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
                 }
                 val |= h[3].values[res] << 8;
                 pred[1] += sign_extend(val, 16);
-                *samples++ = av_clip_int16(pred[1]);
+                *samples++ = pred[1];
             } else {
                 if(vlc[0].table)
                     res = get_vlc2(&gb, vlc[0].table, SMKTREE_BITS, 3);
@@ -709,7 +717,7 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
                 }
                 val |= h[1].values[res] << 8;
                 pred[0] += sign_extend(val, 16);
-                *samples++ = av_clip_int16(pred[0]);
+                *samples++ = pred[0];
             }
         }
     } else { //8-bit data
@@ -730,7 +738,7 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
                     return AVERROR_INVALIDDATA;
                 }
                 pred[1] += sign_extend(h[1].values[res], 8);
-                *samples8++ = av_clip_uint8(pred[1]);
+                *samples8++ = pred[1];
             } else {
                 if(vlc[0].table)
                     res = get_vlc2(&gb, vlc[0].table, SMKTREE_BITS, 3);
@@ -741,7 +749,7 @@ static int smka_decode_frame(AVCodecContext *avctx, void *data,
                     return AVERROR_INVALIDDATA;
                 }
                 pred[0] += sign_extend(h[0].values[res], 8);
-                *samples8++ = av_clip_uint8(pred[0]);
+                *samples8++ = pred[0];
             }
         }
     }

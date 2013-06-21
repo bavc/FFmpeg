@@ -254,6 +254,9 @@ static int decode_wdlt(GetByteContext *gb, uint8_t *frame, int width, int height
             y        += skip_lines;
             segments = bytestream2_get_le16(gb);
         }
+
+        if (frame_end <= frame)
+            return AVERROR_INVALIDDATA;
         if (segments & 0x8000) {
             frame[width - 1] = segments & 0xFF;
             segments = bytestream2_get_le16(gb);
@@ -292,17 +295,19 @@ static int decode_tdlt(GetByteContext *gb, uint8_t *frame, int width, int height
 {
     const uint8_t *frame_end = frame + width * height;
     uint32_t segments = bytestream2_get_le32(gb);
+    int skip, copy;
 
     while (segments--) {
-        int count = bytestream2_get_byte(gb) << 1;
-        int skip = bytestream2_get_byte(gb) << 1;
-
-        if (frame_end - frame < skip + count)
+        if (bytestream2_get_bytes_left(gb) < 2)
+            return AVERROR_INVALIDDATA;
+        copy = bytestream2_get_byteu(gb) * 2;
+        skip = bytestream2_get_byteu(gb) * 2;
+        if (frame_end - frame < copy + skip ||
+            bytestream2_get_bytes_left(gb) < copy)
             return AVERROR_INVALIDDATA;
         frame += skip;
-        if (bytestream2_get_buffer(gb, frame, count) != count)
-            return AVERROR_INVALIDDATA;
-        frame += count;
+        bytestream2_get_buffer(gb, frame, copy);
+        frame += copy;
     }
 
     return 0;
@@ -338,6 +343,7 @@ static int dfa_decode_frame(AVCodecContext *avctx,
     uint8_t *dst;
     int ret;
     int i, pal_elems;
+    int version = avctx->extradata_size==2 ? AV_RL16(avctx->extradata) : 0;
 
     if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
         return ret;
@@ -372,9 +378,17 @@ static int dfa_decode_frame(AVCodecContext *avctx,
     buf = s->frame_buf;
     dst = frame->data[0];
     for (i = 0; i < avctx->height; i++) {
-        memcpy(dst, buf, avctx->width);
+        if(version == 0x100) {
+            int j;
+            for(j = 0; j < avctx->width; j++) {
+                dst[j] = buf[ (i&3)*(avctx->width /4) + (j/4) +
+                             ((j&3)*(avctx->height/4) + (i/4))*avctx->width];
+            }
+        } else {
+            memcpy(dst, buf, avctx->width);
+            buf += avctx->width;
+        }
         dst += frame->linesize[0];
-        buf += avctx->width;
     }
     memcpy(frame->data[1], s->pal, sizeof(s->pal));
 

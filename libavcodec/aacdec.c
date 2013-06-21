@@ -148,6 +148,8 @@ static av_cold int che_configure(AACContext *ac,
                                  enum ChannelPosition che_pos,
                                  int type, int id, int *channels)
 {
+    if (*channels >= MAX_CHANNELS)
+        return AVERROR_INVALIDDATA;
     if (che_pos) {
         if (!ac->che[type][id]) {
             if (!(ac->che[type][id] = av_mallocz(sizeof(ChannelElement))))
@@ -2609,6 +2611,8 @@ static int aac_decode_frame_int(AVCodecContext *avctx, void *data,
 
     if (samples)
         ac->frame->nb_samples = samples;
+    else
+        av_frame_unref(ac->frame);
     *got_frame_ptr = !!samples;
 
     if (is_dmono) {

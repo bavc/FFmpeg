@@ -28,7 +28,6 @@
 #include "libavcodec/avcodec.h"
 
 #include "libavfilter/avfilter.h"
-#include "libavfilter/avfiltergraph.h"
 
 #include "libavutil/avassert.h"
 #include "libavutil/avstring.h"
@@ -987,7 +986,7 @@ static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, e
         exit(1);
     output_streams[nb_output_streams - 1] = ost;
 
-    ost->file_index = nb_output_files;
+    ost->file_index = nb_output_files - 1;
     ost->index      = idx;
     ost->st         = st;
     st->codec->codec_type = type;
@@ -1090,6 +1089,7 @@ static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, e
         input_streams[source_index]->discard = 0;
         input_streams[source_index]->st->discard = AVDISCARD_NONE;
     }
+    ost->last_mux_dts = AV_NOPTS_VALUE;
 
     return ost;
 }
@@ -1169,7 +1169,7 @@ static OutputStream *new_video_stream(OptionsContext *o, AVFormatContext *oc, in
     AVStream *st;
     OutputStream *ost;
     AVCodecContext *video_enc;
-    char *frame_rate = NULL;
+    char *frame_rate = NULL, *frame_aspect_ratio = NULL;
 
     ost = new_output_stream(o, oc, AVMEDIA_TYPE_VIDEO, source_index);
     st  = ost->st;
@@ -1181,10 +1181,21 @@ static OutputStream *new_video_stream(OptionsContext *o, AVFormatContext *oc, in
         exit(1);
     }
 
+    MATCH_PER_STREAM_OPT(frame_aspect_ratios, str, frame_aspect_ratio, oc, st);
+    if (frame_aspect_ratio) {
+        AVRational q;
+        if (av_parse_ratio(&q, frame_aspect_ratio, 255, 0, NULL) < 0 ||
+            q.num <= 0 || q.den <= 0) {
+            av_log(NULL, AV_LOG_FATAL, "Invalid aspect ratio: %s\n", frame_aspect_ratio);
+            exit(1);
+        }
+        ost->frame_aspect_ratio = q;
+    }
+
     if (!ost->stream_copy) {
         const char *p = NULL;
         char *frame_size = NULL;
-        char *frame_aspect_ratio = NULL, *frame_pix_fmt = NULL;
+        char *frame_pix_fmt = NULL;
         char *intra_matrix = NULL, *inter_matrix = NULL;
         int do_pass = 0;
         int i;
@@ -1193,17 +1204,6 @@ static OutputStream *new_video_stream(OptionsContext *o, AVFormatContext *oc, in
         if (frame_size && av_parse_video_size(&video_enc->width, &video_enc->height, frame_size) < 0) {
             av_log(NULL, AV_LOG_FATAL, "Invalid frame size: %s.\n", frame_size);
             exit(1);
-        }
-
-        MATCH_PER_STREAM_OPT(frame_aspect_ratios, str, frame_aspect_ratio, oc, st);
-        if (frame_aspect_ratio) {
-            AVRational q;
-            if (av_parse_ratio(&q, frame_aspect_ratio, 255, 0, NULL) < 0 ||
-                q.num <= 0 || q.den <= 0) {
-                av_log(NULL, AV_LOG_FATAL, "Invalid aspect ratio: %s\n", frame_aspect_ratio);
-                exit(1);
-            }
-            ost->frame_aspect_ratio = q;
         }
 
         video_enc->bits_per_raw_sample = frame_bits_per_raw_sample;
@@ -1333,6 +1333,9 @@ static OutputStream *new_audio_stream(OptionsContext *o, AVFormatContext *oc, in
         }
 
         MATCH_PER_STREAM_OPT(audio_sample_rate, i, audio_enc->sample_rate, oc, st);
+
+        MATCH_PER_STREAM_OPT(apad, str, ost->apad, oc, st);
+        ost->apad = av_strdup(ost->apad);
 
         ost->avfilter = get_ost_filters(o, oc, ost);
         if (!ost->avfilter)
@@ -1574,6 +1577,33 @@ static int open_output_file(OptionsContext *o, const char *filename)
         exit(1);
     }
 
+    if (o->stop_time != INT64_MAX && o->recording_time != INT64_MAX) {
+        o->stop_time = INT64_MAX;
+        av_log(NULL, AV_LOG_WARNING, "-t and -to cannot be used together; using -t.\n");
+    }
+
+    if (o->stop_time != INT64_MAX && o->recording_time == INT64_MAX) {
+        if (o->stop_time <= o->start_time) {
+            av_log(NULL, AV_LOG_WARNING, "-to value smaller than -ss; ignoring -to.\n");
+            o->stop_time = INT64_MAX;
+        } else {
+            o->recording_time = o->stop_time - o->start_time;
+        }
+    }
+
+    GROW_ARRAY(output_files, nb_output_files);
+    of = av_mallocz(sizeof(*of));
+    if (!of)
+        exit(1);
+    output_files[nb_output_files - 1] = of;
+
+    of->ost_index      = nb_output_streams;
+    of->recording_time = o->recording_time;
+    of->start_time     = o->start_time;
+    of->limit_filesize = o->limit_filesize;
+    of->shortest       = o->shortest;
+    av_dict_copy(&of->opts, o->g->format_opts, 0);
+
     if (!strcmp(filename, "-"))
         filename = "pipe:";
 
@@ -1582,6 +1612,11 @@ static int open_output_file(OptionsContext *o, const char *filename)
         print_error(filename, err);
         exit(1);
     }
+
+    of->ctx = oc;
+    if (o->recording_time != INT64_MAX)
+        oc->duration = o->recording_time;
+
     file_oformat= oc->oformat;
     oc->interrupt_callback = int_cb;
 
@@ -1687,7 +1722,6 @@ static int open_output_file(OptionsContext *o, const char *filename)
     } else {
         for (i = 0; i < o->nb_stream_maps; i++) {
             StreamMap *map = &o->stream_maps[i];
-            int src_idx = input_files[map->file_index]->ist_index + map->stream_index;
 
             if (map->disabled)
                 continue;
@@ -1715,6 +1749,8 @@ loop_end:
                 }
                 init_output_filter(ofilter, o, oc);
             } else {
+                int src_idx = input_files[map->file_index]->ist_index + map->stream_index;
+
                 ist = input_streams[input_files[map->file_index]->ist_index + map->stream_index];
                 if(o->subtitle_disable && ist->st->codec->codec_type == AVMEDIA_TYPE_SUBTITLE)
                     continue;
@@ -1786,37 +1822,6 @@ loop_end:
             if (av_opt_set(ost->st->codec, "flags", e->value, 0) < 0)
                 exit(1);
     }
-
-    if (o->stop_time != INT64_MAX && o->recording_time != INT64_MAX) {
-        o->stop_time = INT64_MAX;
-        av_log(NULL, AV_LOG_WARNING, "-t and -to cannot be used together; using -t.\n");
-    }
-
-    if (o->stop_time != INT64_MAX && o->recording_time == INT64_MAX) {
-        if (o->stop_time <= o->start_time) {
-            av_log(NULL, AV_LOG_WARNING, "-to value smaller than -ss; ignoring -to.\n");
-            o->stop_time = INT64_MAX;
-        } else {
-            o->recording_time = o->stop_time - o->start_time;
-        }
-    }
-
-    GROW_ARRAY(output_files, nb_output_files);
-    of = av_mallocz(sizeof(*of));
-    if (!of)
-        exit(1);
-    output_files[nb_output_files - 1] = of;
-
-    of->ctx            = oc;
-    of->ost_index      = nb_output_streams - oc->nb_streams;
-    of->recording_time = o->recording_time;
-    if (o->recording_time != INT64_MAX)
-        oc->duration = o->recording_time;
-    of->start_time     = o->start_time;
-    of->limit_filesize = o->limit_filesize;
-    of->shortest       = o->shortest;
-    av_dict_copy(&of->opts, o->g->format_opts, 0);
-
 
     /* check if all codec options have been used */
     unused_opts = strip_specifiers(o->g->codec_opts);
@@ -2434,7 +2439,7 @@ void show_help_default(const char *opt, const char *arg)
         show_help_children(avformat_get_class(), flags);
         show_help_children(sws_get_class(), flags);
         show_help_children(swr_get_class(), AV_OPT_FLAG_AUDIO_PARAM);
-        show_help_children(avfilter_get_class(), AV_OPT_FLAG_FILTERING_PARAM);
+        show_help_children(avfilter_get_class(), AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_FILTERING_PARAM);
     }
 }
 
@@ -2640,6 +2645,9 @@ const OptionDef options[] = {
     { "shortest",       OPT_BOOL | OPT_EXPERT | OPT_OFFSET |
                         OPT_OUTPUT,                                  { .off = OFFSET(shortest) },
         "finish encoding within shortest input" },
+    { "apad",           OPT_STRING | HAS_ARG | OPT_SPEC |
+                        OPT_OUTPUT,                                  { .off = OFFSET(apad) },
+        "audio pad", "" },
     { "dts_delta_threshold", HAS_ARG | OPT_FLOAT | OPT_EXPERT,       { &dts_delta_threshold },
         "timestamp discontinuity delta threshold", "threshold" },
     { "dts_error_threshold", HAS_ARG | OPT_FLOAT | OPT_EXPERT,       { &dts_error_threshold },

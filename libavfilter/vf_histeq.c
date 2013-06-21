@@ -82,7 +82,7 @@ static const AVOption histeq_options[] = {
 
 AVFILTER_DEFINE_CLASS(histeq);
 
-static av_cold int init(AVFilterContext *ctx, const char *args)
+static av_cold int init(AVFilterContext *ctx)
 {
     HisteqContext *histeq = ctx->priv;
 
@@ -235,7 +235,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *inpic)
                 dst[x + histeq->rgba_map[R]] = r;
                 dst[x + histeq->rgba_map[G]] = g;
                 dst[x + histeq->rgba_map[B]] = b;
-                oluma = (55 * r + 182 * g + 19 * b) >> 8;
+                oluma = av_clip_uint8((55 * r + 182 * g + 19 * b) >> 8);
                 histeq->out_histogram[oluma]++;
             }
         }
@@ -269,8 +269,6 @@ static const AVFilterPad histeq_outputs[] = {
     { NULL }
 };
 
-static const char *const shorthand[] = { "strength", "intensity", "antibanding", NULL };
-
 AVFilter avfilter_vf_histeq = {
     .name          = "histeq",
     .description   = NULL_IF_CONFIG_SMALL("Apply global color histogram equalization."),
@@ -281,5 +279,5 @@ AVFilter avfilter_vf_histeq = {
     .inputs        = histeq_inputs,
     .outputs       = histeq_outputs,
     .priv_class    = &histeq_class,
-    .shorthand     = shorthand,
+    .flags         = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
 };

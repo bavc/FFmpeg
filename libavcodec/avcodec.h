@@ -23,7 +23,8 @@
 
 /**
  * @file
- * external API header
+ * @ingroup libavc
+ * Libavcodec external API header
  */
 
 #include <errno.h>
@@ -269,6 +270,10 @@ enum AVCodecID {
     AV_CODEC_ID_CLLC,
     AV_CODEC_ID_MSS2,
     AV_CODEC_ID_VP9,
+    AV_CODEC_ID_AIC,
+    AV_CODEC_ID_ESCAPE130_DEPRECATED,
+    AV_CODEC_ID_G2M_DEPRECATED,
+
     AV_CODEC_ID_BRENDER_PIX= MKBETAG('B','P','I','X'),
     AV_CODEC_ID_Y41P       = MKBETAG('Y','4','1','P'),
     AV_CODEC_ID_ESCAPE130  = MKBETAG('E','1','3','0'),
@@ -293,6 +298,7 @@ enum AVCodecID {
     AV_CODEC_ID_MVC2       = MKBETAG('M','V','C','2'),
     AV_CODEC_ID_SNOW       = MKBETAG('S','N','O','W'),
     AV_CODEC_ID_WEBP       = MKBETAG('W','E','B','P'),
+    AV_CODEC_ID_SMVJPEG    = MKBETAG('S','M','V','J'),
 
     /* various PCM "codecs" */
     AV_CODEC_ID_FIRST_AUDIO = 0x10000,     ///< A dummy id pointing at the start of audio codecs
@@ -362,6 +368,8 @@ enum AVCodecID {
     AV_CODEC_ID_VIMA       = MKBETAG('V','I','M','A'),
     AV_CODEC_ID_ADPCM_AFC  = MKBETAG('A','F','C',' '),
     AV_CODEC_ID_ADPCM_IMA_OKI = MKBETAG('O','K','I',' '),
+    AV_CODEC_ID_ADPCM_DTK  = MKBETAG('D','T','K',' '),
+    AV_CODEC_ID_ADPCM_IMA_RAD = MKBETAG('R','A','D',' '),
 
     /* AMR */
     AV_CODEC_ID_AMR_NB = 0x12000,
@@ -474,6 +482,7 @@ enum AVCodecID {
     AV_CODEC_ID_MPL2       = MKBETAG('M','P','L','2'),
     AV_CODEC_ID_VPLAYER    = MKBETAG('V','P','l','r'),
     AV_CODEC_ID_PJS        = MKBETAG('P','h','J','S'),
+    AV_CODEC_ID_ASS        = MKBETAG('A','S','S',' '),  ///< ASS as defined in Matroska
 
     /* other specific kind of codecs (generally used for attachments) */
     AV_CODEC_ID_FIRST_UNKNOWN = 0x18000,           ///< A dummy ID pointing at the start of various fake codecs.
@@ -540,8 +549,14 @@ typedef struct AVCodecDescriptor {
 #define AV_CODEC_PROP_LOSSLESS      (1 << 2)
 /**
  * Subtitle codec is bitmap based
+ * Decoded AVSubtitle data can be read from the AVSubtitleRect->pict field.
  */
 #define AV_CODEC_PROP_BITMAP_SUB    (1 << 16)
+/**
+ * Subtitle codec is text based.
+ * Decoded AVSubtitle data can be read from the AVSubtitleRect->ass field.
+ */
+#define AV_CODEC_PROP_TEXT_SUB      (1 << 17)
 
 /**
  * @ingroup lavc_decoding
@@ -678,6 +693,11 @@ typedef struct RcOverride{
    Note: Not everything is supported yet.
 */
 
+/**
+ * Allow decoders to produce frames with data planes that are not aligned
+ * to CPU requirements (e.g. due to cropping).
+ */
+#define CODEC_FLAG_UNALIGNED 0x0001
 #define CODEC_FLAG_QSCALE 0x0002  ///< Use fixed qscale.
 #define CODEC_FLAG_4MV    0x0004  ///< 4 MV per MB allowed / advanced prediction for H.263.
 #define CODEC_FLAG_QPEL   0x0010  ///< Use qpel MC.
@@ -989,6 +1009,17 @@ enum AVPacketSideDataType {
      * by data.
      */
     AV_PKT_DATA_MATROSKA_BLOCKADDITIONAL,
+
+    /**
+     * The optional first identifier line of a WebVTT cue.
+     */
+    AV_PKT_DATA_WEBVTT_IDENTIFIER,
+
+    /**
+     * The optional settings (rendering instructions) that immediately
+     * follow the timestamp specifier of a WebVTT cue.
+     */
+    AV_PKT_DATA_WEBVTT_SETTINGS,
 };
 
 /**
@@ -1282,16 +1313,20 @@ typedef struct AVCodecContext {
     /**
      * picture width / height.
      * - encoding: MUST be set by user.
-     * - decoding: Set by libavcodec.
-     * Note: For compatibility it is possible to set this instead of
-     * coded_width/height before decoding.
+     * - decoding: May be set by the user before opening the decoder if known e.g.
+     *             from the container. Some decoders will require the dimensions
+     *             to be set by the caller. During decoding, the decoder may
+     *             overwrite those values as required.
      */
     int width, height;
 
     /**
-     * Bitstream width / height, may be different from width/height if lowres enabled.
+     * Bitstream width / height, may be different from width/height e.g. when
+     * the decoded frame is cropped before being output or lowres is enabled.
      * - encoding: unused
-     * - decoding: Set by user before init if known. Codec should override / dynamically change if needed.
+     * - decoding: May be set by the user before opening the decoder if known
+     *             e.g. from the container. During decoding, the decoder may
+     *             overwrite those values as required.
      */
     int coded_width, coded_height;
 
@@ -2026,8 +2061,10 @@ typedef struct AVCodecContext {
     /**
      * This callback is called at the beginning of each frame to get data
      * buffer(s) for it. There may be one contiguous buffer for all the data or
-     * there may be a buffer per each data plane or anything in between. Each
-     * buffer must be reference-counted using the AVBuffer API.
+     * there may be a buffer per each data plane or anything in between. What
+     * this means is, you may set however many entries in buf[] you feel necessary.
+     * Each buffer must be reference-counted using the AVBuffer API (see description
+     * of buf[] below).
      *
      * The following fields will be set in the frame before this callback is
      * called:
@@ -2048,8 +2085,11 @@ typedef struct AVCodecContext {
      *     extended_data must be allocated with av_malloc() and will be freed in
      *     av_frame_unref().
      *   * otherwise exended_data must point to data
-     * - buf[] must contain references to the buffers that contain the frame
-     *   data.
+     * - buf[] must contain one or more pointers to AVBufferRef structures. Each of
+     *   the frame's data and extended_data pointers must be contained in these. That
+     *   is, one AVBufferRef for each allocated chunk of memory, not necessarily one
+     *   AVBufferRef per data[] entry. See: av_buffer_create(), av_buffer_alloc(),
+     *   and av_buffer_ref().
      * - extended_buf and nb_extended_buf must be allocated with av_malloc() by
      *   this callback and filled with the extra buffers if there are more
      *   buffers than buf[] can hold. extended_buf will be freed in
@@ -2536,12 +2576,16 @@ typedef struct AVCodecContext {
      */
     int bits_per_raw_sample;
 
+#if FF_API_LOWRES
     /**
      * low resolution decoding, 1-> 1/2 size, 2->1/4 size
      * - encoding: unused
      * - decoding: Set by user.
+     * Code outside libavcodec should access this field using:
+     * av_codec_{get,set}_lowres(avctx)
      */
      int lowres;
+#endif
 
     /**
      * the picture in the bitstream
@@ -2703,6 +2747,12 @@ typedef struct AVCodecContext {
 #define FF_PROFILE_MPEG4_SIMPLE_STUDIO             14
 #define FF_PROFILE_MPEG4_ADVANCED_SIMPLE           15
 
+#define FF_PROFILE_JPEG2000_CSTREAM_RESTRICTION_0   0
+#define FF_PROFILE_JPEG2000_CSTREAM_RESTRICTION_1   1
+#define FF_PROFILE_JPEG2000_CSTREAM_NO_RESTRICTION  2
+#define FF_PROFILE_JPEG2000_DCINEMA_2K              3
+#define FF_PROFILE_JPEG2000_DCINEMA_4K              4
+
     /**
      * level
      * - encoding: Set by user.
@@ -2772,7 +2822,7 @@ typedef struct AVCodecContext {
      * Code outside libavcodec should access this field using:
      * av_codec_{get,set}_pkt_timebase(avctx)
      * - encoding unused.
-     * - decodimg set by user
+     * - decoding set by user.
      */
     AVRational pkt_timebase;
 
@@ -2784,6 +2834,17 @@ typedef struct AVCodecContext {
      * - decoding: set by libavcodec.
      */
     const AVCodecDescriptor *codec_descriptor;
+
+#if !FF_API_LOWRES
+    /**
+     * low resolution decoding, 1-> 1/2 size, 2->1/4 size
+     * - encoding: unused
+     * - decoding: Set by user.
+     * Code outside libavcodec should access this field using:
+     * av_codec_{get,set}_lowres(avctx)
+     */
+     int lowres;
+#endif
 
     /**
      * Current statistics for PTS correction.
@@ -2812,6 +2873,7 @@ typedef struct AVCodecContext {
 #define FF_SUB_CHARENC_MODE_DO_NOTHING  -1  ///< do nothing (demuxer outputs a stream supposed to be already in UTF-8, or the codec is bitmap for instance)
 #define FF_SUB_CHARENC_MODE_AUTOMATIC    0  ///< libavcodec will select the mode itself
 #define FF_SUB_CHARENC_MODE_PRE_DECODER  1  ///< the AVPacket data needs to be recoded to UTF-8 before being fed to the decoder, requires iconv
+
 } AVCodecContext;
 
 AVRational av_codec_get_pkt_timebase         (const AVCodecContext *avctx);
@@ -2819,6 +2881,9 @@ void       av_codec_set_pkt_timebase         (AVCodecContext *avctx, AVRational 
 
 const AVCodecDescriptor *av_codec_get_codec_descriptor(const AVCodecContext *avctx);
 void                     av_codec_set_codec_descriptor(AVCodecContext *avctx, const AVCodecDescriptor *desc);
+
+int  av_codec_get_lowres(const AVCodecContext *avctx);
+void av_codec_set_lowres(AVCodecContext *avctx, int val);
 
 /**
  * AVProfile.
@@ -3436,6 +3501,13 @@ int av_dup_packet(AVPacket *pkt);
 int av_copy_packet(AVPacket *dst, AVPacket *src);
 
 /**
+ * Copy packet side data
+ *
+ * @return 0 on success, negative AVERROR on fail
+ */
+int av_copy_packet_side_data(AVPacket *dst, AVPacket *src);
+
+/**
  * Free a packet.
  *
  * @param pkt packet to free
@@ -3728,6 +3800,13 @@ int avcodec_decode_subtitle2(AVCodecContext *avctx, AVSubtitle *sub,
  * @{
  */
 
+enum AVPictureStructure {
+    AV_PICTURE_STRUCTURE_UNKNOWN,      //< unknown
+    AV_PICTURE_STRUCTURE_TOP_FIELD,    //< coded as top field
+    AV_PICTURE_STRUCTURE_BOTTOM_FIELD, //< coded as bottom field
+    AV_PICTURE_STRUCTURE_FRAME,        //< coded as frame
+};
+
 typedef struct AVCodecParserContext {
     void *priv_data;
     struct AVCodecParser *parser;
@@ -3862,6 +3941,18 @@ typedef struct AVCodecParserContext {
      * For all other types, this is in units of AVCodecContext.time_base.
      */
     int duration;
+
+    enum AVFieldOrder field_order;
+
+    /**
+     * Indicate whether a picture is coded as a frame, top field or bottom field.
+     *
+     * For example, H.264 field_pic_flag equal to 0 corresponds to
+     * AV_PICTURE_STRUCTURE_FRAME. An H.264 picture with field_pic_flag
+     * equal to 1 and bottom_field_flag equal to 0 corresponds to
+     * AV_PICTURE_STRUCTURE_TOP_FIELD.
+     */
+    enum AVPictureStructure picture_structure;
 } AVCodecParserContext;
 
 typedef struct AVCodecParser {

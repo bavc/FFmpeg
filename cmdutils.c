@@ -56,6 +56,10 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #endif
+#if CONFIG_OPENCL
+#include "libavutil/opencl.h"
+#endif
+
 
 static int init_report(const char *env);
 
@@ -955,6 +959,26 @@ int opt_timelimit(void *optctx, const char *opt, const char *arg)
     return 0;
 }
 
+#if CONFIG_OPENCL
+int opt_opencl(void *optctx, const char *opt, const char *arg)
+{
+    char *key, *value;
+    const char *opts = arg;
+    int ret = 0;
+    while (*opts) {
+        ret = av_opt_get_key_value(&opts, "=", ":", 0, &key, &value);
+        if (ret < 0)
+            return ret;
+        ret = av_opencl_set_option(key, value);
+        if (ret < 0)
+            return ret;
+        if (*opts)
+            opts++;
+    }
+    return ret;
+}
+#endif
+
 void print_error(const char *filename, int err)
 {
     char errbuf[128];
@@ -1190,7 +1214,8 @@ static void print_codec(const AVCodec *c)
     printf("%s %s [%s]:\n", encoder ? "Encoder" : "Decoder", c->name,
            c->long_name ? c->long_name : "");
 
-    if (c->type == AVMEDIA_TYPE_VIDEO) {
+    if (c->type == AVMEDIA_TYPE_VIDEO ||
+        c->type == AVMEDIA_TYPE_AUDIO) {
         printf("    Threading capabilities: ");
         switch (c->capabilities & (CODEC_CAP_FRAME_THREADS |
                                    CODEC_CAP_SLICE_THREADS)) {
@@ -1424,31 +1449,41 @@ int show_protocols(void *optctx, const char *opt, const char *arg)
 
 int show_filters(void *optctx, const char *opt, const char *arg)
 {
-    AVFilter av_unused(**filter) = NULL;
+    const AVFilter av_unused(*filter) = NULL;
     char descr[64], *descr_cur;
     int i, j;
     const AVFilterPad *pad;
 
-    printf("Filters:\n");
+    printf("Filters:\n"
+           "  T. = Timeline support\n"
+           "  .S = Slice threading\n"
+           "  A = Audio input/output\n"
+           "  V = Video input/output\n"
+           "  N = Dynamic number and/or type of input/output\n"
+           "  | = Source or sink filter\n");
 #if CONFIG_AVFILTER
-    while ((filter = av_filter_next(filter)) && *filter) {
+    while ((filter = avfilter_next(filter))) {
         descr_cur = descr;
         for (i = 0; i < 2; i++) {
             if (i) {
                 *(descr_cur++) = '-';
                 *(descr_cur++) = '>';
             }
-            pad = i ? (*filter)->outputs : (*filter)->inputs;
+            pad = i ? filter->outputs : filter->inputs;
             for (j = 0; pad && pad[j].name; j++) {
                 if (descr_cur >= descr + sizeof(descr) - 4)
                     break;
                 *(descr_cur++) = get_media_type_char(pad[j].type);
             }
             if (!j)
-                *(descr_cur++) = '|';
+                *(descr_cur++) = ((!i && (filter->flags & AVFILTER_FLAG_DYNAMIC_INPUTS)) ||
+                                  ( i && (filter->flags & AVFILTER_FLAG_DYNAMIC_OUTPUTS))) ? 'N' : '|';
         }
         *descr_cur = 0;
-        printf("%-16s %-10s %s\n", (*filter)->name, descr, (*filter)->description);
+        printf(" %c%c %-16s %-10s %s\n",
+               filter->flags & AVFILTER_FLAG_SUPPORT_TIMELINE ? 'T' : '.',
+               filter->flags & AVFILTER_FLAG_SLICE_THREADS    ? 'S' : '.',
+               filter->name, descr, filter->description);
     }
 #endif
     return 0;
@@ -1475,11 +1510,11 @@ int show_pix_fmts(void *optctx, const char *opt, const char *arg)
     while ((pix_desc = av_pix_fmt_desc_next(pix_desc))) {
         enum AVPixelFormat pix_fmt = av_pix_fmt_desc_get_id(pix_desc);
         printf("%c%c%c%c%c %-16s       %d            %2d\n",
-               sws_isSupportedInput (pix_fmt)      ? 'I' : '.',
-               sws_isSupportedOutput(pix_fmt)      ? 'O' : '.',
-               pix_desc->flags & PIX_FMT_HWACCEL   ? 'H' : '.',
-               pix_desc->flags & PIX_FMT_PAL       ? 'P' : '.',
-               pix_desc->flags & PIX_FMT_BITSTREAM ? 'B' : '.',
+               sws_isSupportedInput (pix_fmt)              ? 'I' : '.',
+               sws_isSupportedOutput(pix_fmt)              ? 'O' : '.',
+               pix_desc->flags & AV_PIX_FMT_FLAG_HWACCEL   ? 'H' : '.',
+               pix_desc->flags & AV_PIX_FMT_FLAG_PAL       ? 'P' : '.',
+               pix_desc->flags & AV_PIX_FMT_FLAG_BITSTREAM ? 'B' : '.',
                pix_desc->name,
                pix_desc->nb_components,
                av_get_bits_per_pixel(pix_desc));
@@ -1611,32 +1646,61 @@ static void show_help_muxer(const char *name)
         show_help_children(fmt->priv_class, AV_OPT_FLAG_ENCODING_PARAM);
 }
 
+#if CONFIG_AVFILTER
 static void show_help_filter(const char *name)
 {
 #if CONFIG_AVFILTER
-    const AVFilter *filter;
+    const AVFilter *f = avfilter_get_by_name(name);
+    int i, count;
 
     if (!name) {
         av_log(NULL, AV_LOG_ERROR, "No filter name specified.\n");
         return;
-    }
-    filter = avfilter_get_by_name(name);
-    if (!filter) {
-        av_log(NULL, AV_LOG_ERROR, "Filter '%s' not found.\n", name);
+    } else if (!f) {
+        av_log(NULL, AV_LOG_ERROR, "Unknown filter '%s'.\n", name);
         return;
     }
-    printf("Filter %s\n", filter->name);
-    if (filter->description)
-        printf("  %s\n", filter->description);
-    if (filter->priv_class)
-        show_help_children(filter->priv_class, AV_OPT_FLAG_FILTERING_PARAM);
-    else
-        printf("No AVOption available\n");
+
+    printf("Filter %s\n", f->name);
+    if (f->description)
+        printf("  %s\n", f->description);
+
+    if (f->flags & AVFILTER_FLAG_SLICE_THREADS)
+        printf("    slice threading supported\n");
+
+    printf("    Inputs:\n");
+    count = avfilter_pad_count(f->inputs);
+    for (i = 0; i < count; i++) {
+        printf("       #%d: %s (%s)\n", i, avfilter_pad_get_name(f->inputs, i),
+               media_type_string(avfilter_pad_get_type(f->inputs, i)));
+    }
+    if (f->flags & AVFILTER_FLAG_DYNAMIC_INPUTS)
+        printf("        dynamic (depending on the options)\n");
+    else if (!count)
+        printf("        none (source filter)\n");
+
+    printf("    Outputs:\n");
+    count = avfilter_pad_count(f->outputs);
+    for (i = 0; i < count; i++) {
+        printf("       #%d: %s (%s)\n", i, avfilter_pad_get_name(f->outputs, i),
+               media_type_string(avfilter_pad_get_type(f->outputs, i)));
+    }
+    if (f->flags & AVFILTER_FLAG_DYNAMIC_OUTPUTS)
+        printf("        dynamic (depending on the options)\n");
+    else if (!count)
+        printf("        none (sink filter)\n");
+
+    if (f->priv_class)
+        show_help_children(f->priv_class, AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_FILTERING_PARAM |
+                                          AV_OPT_FLAG_AUDIO_PARAM);
+    if (f->flags & AVFILTER_FLAG_SUPPORT_TIMELINE)
+        printf("This filter has support for timeline through the 'enable' option.\n");
 #else
     av_log(NULL, AV_LOG_ERROR, "Build without libavfilter; "
            "can not to satisfy request\n");
 #endif
 }
+#endif
 
 int show_help(void *optctx, const char *opt, const char *arg)
 {
@@ -1658,8 +1722,10 @@ int show_help(void *optctx, const char *opt, const char *arg)
         show_help_demuxer(par);
     } else if (!strcmp(topic, "muxer")) {
         show_help_muxer(par);
+#if CONFIG_AVFILTER
     } else if (!strcmp(topic, "filter")) {
         show_help_filter(par);
+#endif
     } else {
         show_help_default(topic, par);
     }

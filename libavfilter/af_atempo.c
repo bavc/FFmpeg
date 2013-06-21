@@ -85,6 +85,8 @@ typedef enum {
  * Filter state machine
  */
 typedef struct {
+    const AVClass *class;
+
     // ring-buffer of input samples, necessary because some times
     // input fragment position may be adjusted backwards:
     uint8_t *buffer;
@@ -121,8 +123,9 @@ typedef struct {
     // tempo scaling factor:
     double tempo;
 
-    // cumulative alignment drift:
-    int drift;
+    // a snapshot of previous fragment input and output position values
+    // captured when the tempo scale factor was set most recently:
+    int64_t origin[2];
 
     // current/previous fragment ring-buffer:
     AudioFragment frag[2];
@@ -146,6 +149,27 @@ typedef struct {
     uint64_t nsamples_out;
 } ATempoContext;
 
+#define OFFSET(x) offsetof(ATempoContext, x)
+
+static const AVOption atempo_options[] = {
+    { "tempo", "set tempo scale factor",
+      OFFSET(tempo), AV_OPT_TYPE_DOUBLE, { .dbl = 1.0 }, 0.5, 2.0,
+      AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_FILTERING_PARAM },
+    { NULL }
+};
+
+AVFILTER_DEFINE_CLASS(atempo);
+
+inline static AudioFragment *yae_curr_frag(ATempoContext *atempo)
+{
+    return &atempo->frag[atempo->nfrag % 2];
+}
+
+inline static AudioFragment *yae_prev_frag(ATempoContext *atempo)
+{
+    return &atempo->frag[(atempo->nfrag + 1) % 2];
+}
+
 /**
  * Reset filter to initial state, do not deallocate existing local buffers.
  */
@@ -155,12 +179,14 @@ static void yae_clear(ATempoContext *atempo)
     atempo->head = 0;
     atempo->tail = 0;
 
-    atempo->drift = 0;
     atempo->nfrag = 0;
     atempo->state = YAE_LOAD_FRAGMENT;
 
     atempo->position[0] = 0;
     atempo->position[1] = 0;
+
+    atempo->origin[0] = 0;
+    atempo->origin[1] = 0;
 
     atempo->frag[0].position[0] = 0;
     atempo->frag[0].position[1] = 0;
@@ -295,6 +321,7 @@ static int yae_reset(ATempoContext *atempo,
 
 static int yae_set_tempo(AVFilterContext *ctx, const char *arg_tempo)
 {
+    const AudioFragment *prev;
     ATempoContext *atempo = ctx->priv;
     char   *tail = NULL;
     double tempo = av_strtod(arg_tempo, &tail);
@@ -310,18 +337,11 @@ static int yae_set_tempo(AVFilterContext *ctx, const char *arg_tempo)
         return AVERROR(EINVAL);
     }
 
+    prev = yae_prev_frag(atempo);
+    atempo->origin[0] = prev->position[0] + atempo->window / 2;
+    atempo->origin[1] = prev->position[1] + atempo->window / 2;
     atempo->tempo = tempo;
     return 0;
-}
-
-inline static AudioFragment *yae_curr_frag(ATempoContext *atempo)
-{
-    return &atempo->frag[atempo->nfrag % 2];
-}
-
-inline static AudioFragment *yae_prev_frag(ATempoContext *atempo)
-{
-    return &atempo->frag[(atempo->nfrag + 1) % 2];
 }
 
 /**
@@ -676,12 +696,21 @@ static int yae_adjust_position(ATempoContext *atempo)
     const AudioFragment *prev = yae_prev_frag(atempo);
     AudioFragment       *frag = yae_curr_frag(atempo);
 
+    const double prev_output_position =
+        (double)(prev->position[1] - atempo->origin[1] + atempo->window / 2);
+
+    const double ideal_output_position =
+        (double)(prev->position[0] - atempo->origin[0] + atempo->window / 2) /
+        atempo->tempo;
+
+    const int drift = (int)(prev_output_position - ideal_output_position);
+
     const int delta_max  = atempo->window / 2;
     const int correction = yae_align(frag,
                                      prev,
                                      atempo->window,
                                      delta_max,
-                                     atempo->drift,
+                                     drift,
                                      atempo->correlation,
                                      atempo->complex_to_real);
 
@@ -691,9 +720,6 @@ static int yae_adjust_position(ATempoContext *atempo)
 
         // clear so that the fragment can be reloaded:
         frag->nsamples = 0;
-
-        // update cumulative correction drift counter:
-        atempo->drift += correction;
     }
 
     return correction;
@@ -947,16 +973,12 @@ static int yae_flush(ATempoContext *atempo,
     return atempo->position[1] == stop_here ? 0 : AVERROR(EAGAIN);
 }
 
-static av_cold int init(AVFilterContext *ctx, const char *args)
+static av_cold int init(AVFilterContext *ctx)
 {
     ATempoContext *atempo = ctx->priv;
-
-    // NOTE: this assumes that the caller has memset ctx->priv to 0:
     atempo->format = AV_SAMPLE_FMT_NONE;
-    atempo->tempo  = 1.0;
     atempo->state  = YAE_LOAD_FRAGMENT;
-
-    return args ? yae_set_tempo(ctx, args) : 0;
+    return 0;
 }
 
 static av_cold void uninit(AVFilterContext *ctx)
@@ -1073,7 +1095,9 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *src_buffer)
         yae_apply(atempo, &src, src_end, &atempo->dst, atempo->dst_end);
 
         if (atempo->dst == atempo->dst_end) {
-            ret = push_samples(atempo, outlink, n_out);
+            int n_samples = ((atempo->dst - atempo->dst_buffer->data[0]) /
+                             atempo->stride);
+            ret = push_samples(atempo, outlink, n_samples);
             if (ret < 0)
                 goto end;
         }
@@ -1166,6 +1190,7 @@ AVFilter avfilter_af_atempo = {
     .query_formats   = query_formats,
     .process_command = process_command,
     .priv_size       = sizeof(ATempoContext),
+    .priv_class      = &atempo_class,
     .inputs          = atempo_inputs,
     .outputs         = atempo_outputs,
 };

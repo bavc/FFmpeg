@@ -50,16 +50,9 @@ static const AVOption edgedetect_options[] = {
 
 AVFILTER_DEFINE_CLASS(edgedetect);
 
-static av_cold int init(AVFilterContext *ctx, const char *args)
+static av_cold int init(AVFilterContext *ctx)
 {
-    int ret;
     EdgeDetectContext *edgedetect = ctx->priv;
-
-    edgedetect->class = &edgedetect_class;
-    av_opt_set_defaults(edgedetect);
-
-    if ((ret = av_set_options_string(edgedetect, args, "=", ":")) < 0)
-        return ret;
 
     edgedetect->low_u8  = edgedetect->low  * 255. + .5;
     edgedetect->high_u8 = edgedetect->high * 255. + .5;
@@ -334,4 +327,5 @@ AVFilter avfilter_vf_edgedetect = {
     .inputs        = edgedetect_inputs,
     .outputs       = edgedetect_outputs,
     .priv_class    = &edgedetect_class,
+    .flags         = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
 };
