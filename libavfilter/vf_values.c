@@ -1,6 +1,6 @@
 /*
  ** <h3>values graph</h3>
- * copyright (c) 2010 Mark Heath mjpeg0 @ silicontrip dot net
+ * copyright (c) 2010 Mark Heath mjpeg0 @ silicontrip dot org
  * http://silicontrip.net/~mark/lavtools/
  *
  *
@@ -27,12 +27,6 @@
 #include "libavutil/pixdesc.h"
 #include "internal.h"
 
-/* Prototypes for filter functions */
-
-static int filter_tout(const AVFrame *p, int x, int y, int w, int h);
-static int filter_vrep(const AVFrame *p, int x, int y, int w, int h);
-static int filter_range(const AVFrame *p, int x, int y, int w, int h);
-
 enum FilterMode {
     FILTER_NONE = -1,
     FILTER_TOUT,
@@ -41,38 +35,76 @@ enum FilterMode {
     FILT_NUMB
 };
 
-static int (*filter_call[FILT_NUMB])(const AVFrame *p, int x, int y, int w, int h) = {
+
+typedef struct
+{
+    const AVClass *class;
+    
+    FILE  *fh;
+    char *filename;
+    
+    int chromah;
+    int chromaw;
+    int fc;
+    
+    int fs;
+    int cfs;
+    
+    enum FilterMode outfilter;
+    int filter[FILT_NUMB];
+    char *statistics_str;
+    
+    AVFrame *frame_prev;
+    
+    int filter_vrep_prev;
+    
+    char* vrep_line;
+    
+    
+} valuesContext;
+
+
+/* Prototypes for filter functions */
+
+static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
+static int filter_vrep(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
+static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
+
+
+static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h);
+static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h);
+static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h);
+
+static void filter_uninit_tout(valuesContext *values);
+static void filter_uninit_vrep(valuesContext *values);
+static void filter_uninit_range(valuesContext *values);
+
+
+
+static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *p, int x, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_range
 };
+
+static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  int w, int h) = {
+    filter_init_tout,
+    filter_init_vrep,
+    filter_init_range
+};
+
+static void (*filter_uninit[FILT_NUMB])(valuesContext *values) = {
+    filter_uninit_tout,
+    filter_uninit_vrep,
+    filter_uninit_range
+};
+
 
 static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", NULL };
 static const char *const filter_names[]     = { "tout", "vrep", "rang", NULL };
 
 /* end of filter definitions */
 
-typedef struct
-{
-    const AVClass *class;
-
-    FILE  *fh;
-    char *filename;
-
-    int chromah;
-    int chromaw;
-    int fc;
-
-    int fs;
-    int cfs;
-
-    enum FilterMode outfilter;
-    int filter[FILT_NUMB];
-    char *statistics_str;
-
-    AVFrame *frame_prev;
-
-} valuesContext;
 
 #define OFFSET(x) offsetof(valuesContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
@@ -188,7 +220,18 @@ int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     return dif>4?1:0;
 }
 
-static int filter_range(const AVFrame *p, int x, int y, int w, int h)
+static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h)
+{
+    ;
+}
+
+static void filter_uninit_range(valuesContext *values)
+{
+    ;
+}
+
+
+static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
 {
     int lw = p->linesize[0];
     int luma = p->data[0][y * lw + x];
@@ -196,15 +239,25 @@ static int filter_range(const AVFrame *p, int x, int y, int w, int h)
     return (luma<16 || luma>235)?1:0;
 }
 
-static int filter_tout(const AVFrame *p, int x, int y, int w, int h)
+static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h)
+{
+    ;
+}
+
+static void filter_uninit_tout(valuesContext *values)
+{
+    ;
+}
+
+static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
 {
     int lw = p->linesize[0];
-
+    
     if ((x-1 < 0) || (x+1 > w) || (y-1 < 0) || (y+1 >= h)) {
         return 0;
     } else {
         int i;
-
+        
         for (i = -1; i < 2; i++) {
             // detect two pixels above and below (to eliminate interlace artefacts)
             if ((y-2 >=0) && (y+2 < h)) {
@@ -213,7 +266,7 @@ static int filter_tout(const AVFrame *p, int x, int y, int w, int h)
                                          p->data[0][(y+2) * lw + i+x]))
                     return 0;
             }
-
+            
             if (!filter_tout_outlier(p->data[0][(y-1) * lw + i+x],
                                      p->data[0][    y * lw + i+x],
                                      p->data[0][(y+1) * lw + i+x]))
@@ -223,39 +276,46 @@ static int filter_tout(const AVFrame *p, int x, int y, int w, int h)
     return 1;
 }
 
-static int filter_vrep_prev;
 
-static int filter_vrep(const AVFrame *p, int x, int y, int w, int h)
+static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h)
 {
+
+    int i,y;
     int lw = p->linesize[0];
-    int totdiff = 0;
 
-    if (x != 0)
-        return filter_vrep_prev;
-
-    if (y-4 < 0) {
-        return 0;
-    } else {
-        int i = 0;
+    values->vrep_line = (char *) malloc (h);
+    
+    for (y=4;y<h;y++)
+    {
+        int totdiff = 0;
 
         int y2lw = (y-4) * lw;
         int ylw = y * lw;
-
-        // do the whole line.
+        
         for (i = 0; i < w; i++)
             totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
+
+        /* this value should be definable */
+        if (totdiff < w ) {
+            values->vrep_line[y] = 1;
+        }
+
     }
-
-    // need a threshold
-
-    if (totdiff < 512) {
-        filter_vrep_prev = 1;
-        return 1;
-    }
-
-    filter_vrep_prev = 0;
-    return 0;
+    
 }
+
+static int filter_vrep(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
+{
+    return values->vrep_line[y];
+}
+
+static void filter_uninit_vrep(valuesContext *values)
+{
+    free (values->vrep_line);
+}
+
+
+
 
 #define DEPTH 256
 
@@ -315,6 +375,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for(j=0...)\n");
 
+    for (fil = 0; fil < FILT_NUMB; fil ++) {
+        if (values->filter[fil] || values->outfilter == fil) {
+            values->filter[fil]=1;
+            filter_init[fil](values, in,link->w,link->h);
+        }
+    }
+
+    
     for (j = 0; j < link->h; j++) {
         for (i = 0; i < link->w; i++) {
 
@@ -357,9 +425,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             // magic filter array
 
             for (fil = 0; fil < FILT_NUMB; fil ++) {
-                if (values->filter[fil] || values->outfilter == fil) {
-                    values->filter[fil]=1;
-                    if (filter_call[fil](in,i,j,link->w,link->h)) {
+                if (values->filter[fil] ) {
+                    if (filter_call[fil](values,in,i,j,link->w,link->h)) {
                         filtot[fil] ++;
                         if (values->outfilter == fil)
                             out->data[0][ow+i] = 235;
@@ -443,6 +510,15 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             av_dict_set(&out->metadata,metaname,metabuf,0);
         }
     }
+    
+    for (fil = 0; fil < FILT_NUMB; fil ++) {
+        if (values->filter[fil] || values->outfilter == fil) {
+            filter_uninit[fil](values);
+        }
+    }
+
+    
+    
     /*
      if (values->fh != NULL) {
      fprintf(values->fh,"%d %d %g %d %d %g %d %d %g %d",values->fc,
