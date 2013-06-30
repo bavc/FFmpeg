@@ -32,6 +32,7 @@ enum FilterMode {
     FILTER_TOUT,
     FILTER_VREP,
     FILTER_RANGE,
+    FILTER_HEADSWITCHING,
     FILT_NUMB
 };
 
@@ -59,7 +60,7 @@ typedef struct
     int filter_vrep_prev;
     
     char* vrep_line;
-    
+    unsigned int * filter_head_border;
     
 } valuesContext;
 
@@ -69,39 +70,45 @@ typedef struct
 static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
 static int filter_vrep(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
 static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
+static int filter_head(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
 
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h);
 static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h);
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h);
+static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h);
 
 static void filter_uninit_tout(valuesContext *values);
 static void filter_uninit_vrep(valuesContext *values);
 static void filter_uninit_range(valuesContext *values);
+static void filter_uninit_head(valuesContext *values);
 
 
 
 static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *p, int x, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
-    filter_range
+    filter_range,
+    filter_head
 };
 
 static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  int w, int h) = {
     filter_init_tout,
     filter_init_vrep,
-    filter_init_range
+    filter_init_range,
+    filter_init_head
 };
 
 static void (*filter_uninit[FILT_NUMB])(valuesContext *values) = {
     filter_uninit_tout,
     filter_uninit_vrep,
-    filter_uninit_range
+    filter_uninit_range,
+    filter_uninit_head
 };
 
 
-static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", NULL };
-static const char *const filter_names[]     = { "tout", "vrep", "rang", NULL };
+static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
+static const char *const filter_names[]     = { "tout", "vrep", "rang", "head", NULL };
 
 /* end of filter definitions */
 
@@ -118,6 +125,8 @@ static const AVOption values_options[] = {
         {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT},  0, 0, FLAGS, "out"},
         {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
         {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0, 0, FLAGS, "out"},
+        {"head", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_HEADSWITCHING}, 0, 0, FLAGS, "out"},
+
     {"stat", "set the '|'-separated list of statistics filter", OFFSET(statistics_str), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {NULL}
 };
@@ -220,6 +229,104 @@ int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     return dif>4?1:0;
 }
 
+static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h)
+{
+    
+    int y;
+    int tol = 16; // this needs to be configurable.
+    int lw = p->linesize[0];
+    unsigned int *order;
+    int median;
+    
+    // should check if this fails
+    values->filter_head_border = (unsigned int*)malloc (h * sizeof(unsigned int));
+
+    order = (unsigned int*)malloc (h * sizeof(unsigned int));
+
+    
+    for (y=0; y< h; y++)
+    {
+        
+        int yw = y*lw;
+        int x;
+        // try not to get fooled by non matted video.
+        int col = 16;
+        
+        values->filter_head_border[y] = 0;
+
+        
+        if (p->data[0][yw] <= 16)
+            col = p->data[0][yw];
+        
+        for (x=0; x< w; x++)
+        {
+            if (abs(col - p->data[0][yw + x]) > tol)
+            {
+                values->filter_head_border[y] = x;
+                order[y] = x;
+                break;
+            }
+            
+        }
+    }
+
+    // there is probably a better and easier (and faster) sorting method
+    for (y=0; y< h; y++ )
+    {
+        int min = order[y];
+        int select = y;
+        int x;
+        
+        for (x=y; x<h; x++)
+        {
+            if (order[x] < min)
+            {
+                min = order[x];
+                select = x;
+            }
+            
+            if (select != y)
+            {
+                min = order[y];
+                order[y] = order[select];
+                order[select] = min;
+            }
+        }
+        
+    }
+    // especially if all I want now is the 50th percentile.
+
+    median = order[50 * h / 100] ;
+    
+    // remove possible matting
+    for (y=0;y<h;y++)
+    {
+        if (values->filter_head_border[y] < median)
+            values->filter_head_border[y] = 0;
+    }
+    
+    
+    free (order);
+    
+}
+
+
+static int filter_head (valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
+{
+
+    if (x < values->filter_head_border[y] )
+        return 1;
+    
+    return 0;
+    
+}
+
+static void filter_uninit_head(valuesContext *values)
+{
+    free(values->filter_head_border);
+    
+}
+
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h)
 {
     ;
@@ -236,6 +343,7 @@ static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, i
     int lw = p->linesize[0];
     int luma = p->data[0][y * lw + x];
 
+    // should also check chroma
     return (luma<16 || luma>235)?1:0;
 }
 
@@ -260,6 +368,7 @@ static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, in
         
         for (i = -1; i < 2; i++) {
             // detect two pixels above and below (to eliminate interlace artefacts)
+            // should check that video format is infact interlace.
             if ((y-2 >=0) && (y+2 < h)) {
                 if (!filter_tout_outlier(p->data[0][(y-2) * lw + i+x],
                                          p->data[0][    y * lw + i+x],
