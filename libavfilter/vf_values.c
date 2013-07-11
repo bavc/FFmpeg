@@ -523,29 +523,29 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
             
+            
+            if (in->interlaced_frame && (!j % 2)) // every second line
+            {
+                
+                
+                // dif2 = diff bottom field with top field
+                
+                dify2 += abs(in->data[0][w+i] - in->data[0][w+in->linesize[0]+i] );
+                if (in->top_field_first)
+                {
+                    // dif1 = diff top field with prev bottom field
+                    dify1 += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+values->frame_prev->linesize[0]+i]);
+                } else {
+                    // dif1 = diff bottom field with prev top field
+                    dify1 += abs(in->data[0][w+in->linesize[0]+i] - values->frame_prev->data[0][pw+i]);
+                }
+                
+            }
+
 
             if (i < values->chromaw && j < values->chromah) {
                 
                 
-                if (in->interlaced_frame)
-                {
-                    
-                    int w2 = 2 * w;
-                    int pw2 = 2 * pw;
-                    
-                    // dif2 = diff bottom field with top field
-
-                    dify2 += abs(in->data[0][w2+i] - in->data[0][w2+w+i] );
-                    if (in->top_field_first)
-                    {
-                        // dif1 = diff top field with prev bottom field
-                        dify1 += abs(in->data[0][w2+i] - values->frame_prev->data[0][pw2+pw+i]);
-                    } else {
-                        // dif1 = diff bottom field with prev top field
-                        dify1 += abs(in->data[0][w2+w+i] - values->frame_prev->data[0][pw2+i]);
-                    }
-                    
-                }
 
                 
                 
