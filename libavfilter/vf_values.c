@@ -651,8 +651,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YDIF",  "%g", 1.0 * dify / values->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
     SET_META("VDIF",  "%g", 1.0 * difv / values->cfs);
-                                     SET_META("YDIF1",  "%g", 1.0 * dify1 / values->fs);
-                                     SET_META("YDIF2",  "%g", 1.0 * dify2 / values->fs);
+                                     SET_META("YDIF1",  "%g", 1.0 * dify1 / (values->fs/2));
+                                     SET_META("YDIF2",  "%g", 1.0 * dify2 / (values->fs/2));
 
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
 
