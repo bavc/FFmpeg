@@ -27,6 +27,8 @@
 #include "libavutil/pixdesc.h"
 #include "internal.h"
 
+// dB = 10 * log10 (r1/r2)
+
 enum FilterMode {
     FILTER_NONE = -1,
     FILTER_TOUT,
@@ -237,6 +239,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
     int lw = p->linesize[0];
     unsigned int *order;
     int median;
+    int switching =1;
     
     // should check if this fails
     values->filter_head_border = (unsigned int*)malloc (h * sizeof(unsigned int));
@@ -305,6 +308,16 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
             values->filter_head_border[y] = 0;
     }
     
+    for (y=h-1; y>0; y--)
+    {
+        
+       if (values->filter_head_border[y] <= median )
+           switching = 0;
+        
+        if (!switching)
+            values->filter_head_border[y] = 0;
+        
+    }
     
     free (order);
     
@@ -453,6 +466,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int accy, accu, accv;
     int toty = 0, totu = 0, totv = 0;
     int dify = 0, difu = 0, difv = 0;
+    int dify1 = 0, dify2 = 0;
 
     int filtot[FILT_NUMB] = {0};
 
@@ -508,8 +522,34 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
+            
 
             if (i < values->chromaw && j < values->chromah) {
+                
+                
+                if (in->interlaced_frame)
+                {
+                    
+                    int w2 = 2 * w;
+                    int pw2 = 2 * pw;
+                    
+                    // dif2 = diff bottom field with top field
+
+                    dify2 += abs(in->data[0][w2+i] - in->data[0][w2+w+i] );
+                    if (in->top_field_first)
+                    {
+                        // dif1 = diff top field with prev bottom field
+                        dify1 += abs(in->data[0][w2+i] - values->frame_prev->data[0][pw2+pw+i]);
+                    } else {
+                        // dif1 = diff bottom field with prev top field
+                        dify1 += abs(in->data[0][w2+w+i] - values->frame_prev->data[0][pw2+i]);
+                    }
+                    
+                }
+
+                
+                
+                
                 yuv = in->data[1][cw+i];
                 if (yuv > maxu) maxu=yuv;
                 if (yuv < minu) minu=yuv;
@@ -606,9 +646,12 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("VAVG",  "%g", 1.0 * totv / values->cfs);
     SET_META("VHIGH", "%d", highv);
     SET_META("VMAX",  "%d", maxv);
-    SET_META("YDIF",  "%g", 1.0 * difv / values->fs);
+    SET_META("YDIF",  "%g", 1.0 * dify / values->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
     SET_META("VDIF",  "%g", 1.0 * difv / values->cfs);
+                                     SET_META("YDIF1",  "%g", 1.0 * dify1 / values->fs);
+                                     SET_META("YDIF2",  "%g", 1.0 * dify2 / values->fs);
+
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
