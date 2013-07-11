@@ -524,7 +524,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
             
             
-            if (in->interlaced_frame && (!j % 2)) // every second line
+//            if (in->interlaced_frame && (!j % 2)) // every second line
+            if (!j % 2) // every second line
+
             {
                 
                 
