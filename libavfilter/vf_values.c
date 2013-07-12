@@ -524,32 +524,32 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
             
             
-            if (in->interlaced_frame && (!j % 2)) // every second line
+            //if (in->interlaced_frame && (j % 2 == 0)) // every second line
+            if (j % 2 == 0) // every second line
             {
-                
-                
+               
+               // get bottom field
+               // should check that we are not currently at the bottom line. 
+                // but who has heard of an interlaced file with odd vertical dimentions?
+                int yuvi = in->data[0][w+in->linesize[0]+i];
+
                 // dif2 = diff bottom field with top field
                 
-                dify2 += abs(in->data[0][w+i] - in->data[0][w+in->linesize[0]+i] );
+                dify2 += abs(yuv - yuvi);
+
                 if (in->top_field_first)
                 {
                     // dif1 = diff top field with prev bottom field
-                    dify1 += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+values->frame_prev->linesize[0]+i]);
+                    dify1 += abs(yuv - values->frame_prev->data[0][pw+values->frame_prev->linesize[0]+i]);
                 } else {
                     // dif1 = diff bottom field with prev top field
-                    dify1 += abs(in->data[0][w+in->linesize[0]+i] - values->frame_prev->data[0][pw+i]);
+                    dify1 += abs(yuvi - values->frame_prev->data[0][pw+i]);
                 }
                 
             }
 
-
             if (i < values->chromaw && j < values->chromah) {
-                
-                
 
-                
-                
-                
                 yuv = in->data[1][cw+i];
                 if (yuv > maxu) maxu=yuv;
                 if (yuv < minu) minu=yuv;
@@ -649,17 +649,20 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YDIF",  "%g", 1.0 * dify / values->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
     SET_META("VDIF",  "%g", 1.0 * difv / values->cfs);
-                                     SET_META("YDIF1",  "%g", 1.0 * dify1 / values->fs);
-                                     SET_META("YDIF2",  "%g", 1.0 * dify2 / values->fs);
+    SET_META("YDIF1",  "%g", 1.0 * dify1 / values->fs);
+    SET_META("YDIF2",  "%g", 1.0 * dify2 / values->fs);
 
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filter[fil]) {
+       //     SET_META(filter_metanames[fil],"%g",1.0 * filtot[fil]/values->fs);
+
             char metaname[128];
             snprintf(metabuf,sizeof(metabuf),"%g",1.0 * filtot[fil]/values->fs);
             snprintf(metaname,sizeof(metaname),"lavfi.values.%s",filter_metanames[fil]);
             av_dict_set(&out->metadata,metaname,metabuf,0);
+
         }
     }
     
@@ -669,24 +672,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         }
     }
 
-    
-    
-    /*
-     if (values->fh != NULL) {
-     fprintf(values->fh,"%d %d %g %d %d %g %d %d %g %d",values->fc,
-     miny,1.0 * toty / values->fs, maxy,
-     minu,1.0 * totu / values->cfs, maxu,
-     minv,1.0 * totv / values->cfs, maxv);
-
-     for (fil = 0; fil < FILT_NUMB; fil ++) {
-     if (values->filter[fil]) {
-     fprintf (values->fh," %g",1.0 * filtot[fil] / values->fs);
-     }
-     }
-
-     fprintf(values->fh,"\n");
-     }
-     */
     values->fc++;
     if (!direct)
         av_frame_free(&in);
