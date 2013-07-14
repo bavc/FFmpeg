@@ -48,6 +48,9 @@ typedef struct
     
     int chromah;
     int chromaw;
+    const int hsub;
+    const int vsub;
+
     int fc;
     
     int fs;
@@ -200,16 +203,16 @@ static int config_props(AVFilterLink *outlink)
     valuesContext *values = ctx->priv;
     AVFilterLink *inlink = outlink->src->inputs[0];
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(outlink->format);
-    const int hsub = desc->log2_chroma_w;
-    const int vsub = desc->log2_chroma_h;
+    values->hsub = desc->log2_chroma_w;
+    values->vsub = desc->log2_chroma_h;
 
     av_log(ctx, AV_LOG_DEBUG, ">>> config_props().\n");
 
     outlink->w = inlink->w;
     outlink->h = inlink->h;
 
-    values->chromaw = FF_CEIL_RSHIFT(inlink->w, hsub);
-    values->chromah = FF_CEIL_RSHIFT(inlink->h, vsub);
+    values->chromaw = FF_CEIL_RSHIFT(inlink->w, values->hsub);
+    values->chromah = FF_CEIL_RSHIFT(inlink->h, values->vsub);
 
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
@@ -356,8 +359,14 @@ static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, i
     int lw = p->linesize[0];
     int luma = p->data[0][y * lw + x];
 
-    // should also check chroma
-    return (luma<16 || luma>235)?1:0;
+    int cw = p->linesize[1]; // assume linesize[1] == linesize[2]
+    int cy = FF_CEIL_RSHIFT(y, values->vsub);
+    int cx = FF_CEIL_RSHIFT(x, values->hsub);
+    int chromau = p->data[1][cy*cw+cx];
+    int chromav = p->data[2][cy*cw+cx];
+
+    //  also check chroma
+    return (luma<16 || luma>235 || chromau < 16 || chromau>240 || chromav < 16 || chromav > 240)?1:0;
 }
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h)
