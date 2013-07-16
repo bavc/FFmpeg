@@ -48,8 +48,8 @@ typedef struct
     
     int chromah;
     int chromaw;
-    const int hsub;
-    const int vsub;
+     int hsub;
+     int vsub;
 
     int fc;
     
@@ -266,10 +266,11 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
         
         for (x=0; x< w; x++)
         {
+            order[y] = x;
+
             if (abs(col - p->data[0][yw + x]) > tol)
             {
                 values->filter_head_border[y] = x;
-                order[y] = x;
                 break;
             }
             
@@ -302,7 +303,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
     }
     // especially if all I want now is the 50th percentile.
 
-    median = order[50 * h / 100] ;
+    median = order[985 * h / 1000] ;
     
     // remove possible matting
     for (y=0;y<h;y++)
@@ -311,6 +312,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
             values->filter_head_border[y] = 0;
     }
     
+    /*
     for (y=h-1; y>0; y--)
     {
         
@@ -321,7 +323,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
             values->filter_head_border[y] = 0;
         
     }
-    
+    */
     free (order);
     
 }
