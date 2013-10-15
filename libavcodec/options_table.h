@@ -40,7 +40,7 @@
 
 #define AV_CODEC_DEFAULT_BITRATE 200*1000
 
-static const AVOption options[]={
+static const AVOption avcodec_options[] = {
 {"b", "set bitrate (in bits/s)", OFFSET(bit_rate), AV_OPT_TYPE_INT, {.i64 = AV_CODEC_DEFAULT_BITRATE }, 0, INT_MAX, A|V|E},
 {"ab", "set bitrate (in bits/s)", OFFSET(bit_rate), AV_OPT_TYPE_INT, {.i64 = 128*1000 }, 0, INT_MAX, A|E},
 {"bt", "Set video bitrate tolerance (in bits/s). In 1-pass mode, bitrate tolerance specifies how far "
@@ -303,6 +303,8 @@ static const AVOption options[]={
 {"aac_he_v2", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_AAC_HE_V2 }, INT_MIN, INT_MAX, A|E, "profile"},
 {"aac_ld", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_AAC_LD }, INT_MIN, INT_MAX, A|E, "profile"},
 {"aac_eld", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_AAC_ELD }, INT_MIN, INT_MAX, A|E, "profile"},
+{"mpeg2_aac_low", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_MPEG2_AAC_LOW }, INT_MIN, INT_MAX, A|E, "profile"},
+{"mpeg2_aac_he", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_MPEG2_AAC_HE }, INT_MIN, INT_MAX, A|E, "profile"},
 {"dts", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_DTS }, INT_MIN, INT_MAX, A|E, "profile"},
 {"dts_es", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_DTS_ES }, INT_MIN, INT_MAX, A|E, "profile"},
 {"dts_96_24", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_PROFILE_DTS_96_24 }, INT_MIN, INT_MAX, A|E, "profile"},
@@ -378,6 +380,13 @@ static const AVOption options[]={
 {"auto",        NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_SUB_CHARENC_MODE_AUTOMATIC},   INT_MIN, INT_MAX, S|D, "sub_charenc_mode"},
 {"pre_decoder", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_SUB_CHARENC_MODE_PRE_DECODER}, INT_MIN, INT_MAX, S|D, "sub_charenc_mode"},
 {"refcounted_frames", NULL, OFFSET(refcounted_frames), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, A|V|D },
+{"skip_alpha", "Skip processing alpha", OFFSET(skip_alpha), AV_OPT_TYPE_INT, {.i64 = 0 }, 0, 1, V|D },
+{"field_order", "Field order", OFFSET(field_order), AV_OPT_TYPE_INT, {.i64 = AV_FIELD_UNKNOWN }, 0, 5, V|D|E, "field_order" },
+{"progressive", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = AV_FIELD_PROGRESSIVE }, 0, 0, V|D|E, "field_order" },
+{"tt", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = AV_FIELD_TT }, 0, 0, V|D|E, "field_order" },
+{"bb", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = AV_FIELD_BB }, 0, 0, V|D|E, "field_order" },
+{"tb", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = AV_FIELD_TB }, 0, 0, V|D|E, "field_order" },
+{"bt", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = AV_FIELD_BT }, 0, 0, V|D|E, "field_order" },
 {NULL},
 };
 

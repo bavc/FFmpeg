@@ -506,8 +506,10 @@ static int decode_i_block(FourXContext *f, int16_t *block)
 
     /* DC coef */
     val = get_vlc2(&f->pre_gb, f->pre_vlc.table, ACDC_VLC_BITS, 3);
-    if (val >> 4)
+    if (val >> 4) {
         av_log(f->avctx, AV_LOG_ERROR, "error dc run != 0\n");
+        return AVERROR_INVALIDDATA;
+    }
 
     if (val)
         val = get_xbits(&f->gb, val);
@@ -525,7 +527,12 @@ static int decode_i_block(FourXContext *f, int16_t *block)
         if (code == 0xf0) {
             i += 16;
         } else {
-            level = get_xbits(&f->gb, code & 0xf);
+            if (code & 0xf) {
+                level = get_xbits(&f->gb, code & 0xf);
+            } else {
+                av_log(f->avctx, AV_LOG_ERROR, "0 coeff\n");
+                return AVERROR_INVALIDDATA;
+            }
             i    += code >> 4;
             if (i >= 64) {
                 av_log(f->avctx, AV_LOG_ERROR, "run %d oveflow\n", i);
@@ -835,6 +842,8 @@ static int decode_frame(AVCodecContext *avctx, void *data,
     if (buf_size < 20)
         return AVERROR_INVALIDDATA;
 
+    av_assert0(avctx->width % 16 == 0 && avctx->height % 16 == 0);
+
     if (buf_size < AV_RL32(buf + 4) + 8) {
         av_log(f->avctx, AV_LOG_ERROR, "size mismatch %d %d\n",
                buf_size, AV_RL32(buf + 4));
@@ -1011,6 +1020,7 @@ static av_cold int decode_end(AVCodecContext *avctx)
 
 AVCodec ff_fourxm_decoder = {
     .name           = "4xm",
+    .long_name      = NULL_IF_CONFIG_SMALL("4X Movie"),
     .type           = AVMEDIA_TYPE_VIDEO,
     .id             = AV_CODEC_ID_4XM,
     .priv_data_size = sizeof(FourXContext),
@@ -1018,5 +1028,4 @@ AVCodec ff_fourxm_decoder = {
     .close          = decode_end,
     .decode         = decode_frame,
     .capabilities   = CODEC_CAP_DR1,
-    .long_name      = NULL_IF_CONFIG_SMALL("4X Movie"),
 };

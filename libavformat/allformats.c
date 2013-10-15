@@ -135,6 +135,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX(H261,             h261);
     REGISTER_MUXDEMUX(H263,             h263);
     REGISTER_MUXDEMUX(H264,             h264);
+    REGISTER_DEMUXER (H265,             h265);
     REGISTER_MUXDEMUX(HLS,              hls);
     REGISTER_MUXDEMUX(ICO,              ico);
     REGISTER_DEMUXER (IDCIN,            idcin);
@@ -335,8 +336,10 @@ void av_register_all(void)
     REGISTER_PROTOCOL(TCP,              tcp);
     REGISTER_PROTOCOL(TLS,              tls);
     REGISTER_PROTOCOL(UDP,              udp);
+    REGISTER_PROTOCOL(UNIX,             unix);
 
     /* external libraries */
+    REGISTER_DEMUXER (LIBGME,           libgme);
     REGISTER_DEMUXER (LIBMODPLUG,       libmodplug);
     REGISTER_MUXDEMUX(LIBNUT,           libnut);
     REGISTER_DEMUXER (LIBQUVI,          libquvi);
@@ -345,4 +348,5 @@ void av_register_all(void)
     REGISTER_PROTOCOL(LIBRTMPS,         librtmps);
     REGISTER_PROTOCOL(LIBRTMPT,         librtmpt);
     REGISTER_PROTOCOL(LIBRTMPTE,        librtmpte);
+    REGISTER_PROTOCOL(LIBSSH,           libssh);
 }

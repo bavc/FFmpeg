@@ -148,6 +148,20 @@ static av_cold void build_requant_tab(void)
 }
 
 
+static av_cold void free_frame_buffers(Indeo3DecodeContext *ctx)
+{
+    int p;
+
+    ctx->width = ctx->height = 0;
+
+    for (p = 0; p < 3; p++) {
+        av_freep(&ctx->planes[p].buffers[0]);
+        av_freep(&ctx->planes[p].buffers[1]);
+        ctx->planes[p].pixels[0] = ctx->planes[p].pixels[1] = 0;
+    }
+}
+
+
 static av_cold int allocate_frame_buffers(Indeo3DecodeContext *ctx,
                                           AVCodecContext *avctx, int luma_width, int luma_height)
 {
@@ -188,6 +202,11 @@ static av_cold int allocate_frame_buffers(Indeo3DecodeContext *ctx,
         ctx->planes[p].buffers[0] = av_malloc(!p ? luma_size : chroma_size);
         ctx->planes[p].buffers[1] = av_malloc(!p ? luma_size : chroma_size);
 
+        if (!ctx->planes[p].buffers[0] || !ctx->planes[p].buffers[1]) {
+            free_frame_buffers(ctx);
+            return AVERROR(ENOMEM);
+        }
+
         /* fill the INTRA prediction lines with the middle pixel value = 64 */
         memset(ctx->planes[p].buffers[0], 0x40, ctx->planes[p].pitch);
         memset(ctx->planes[p].buffers[1], 0x40, ctx->planes[p].pitch);
@@ -201,22 +220,6 @@ static av_cold int allocate_frame_buffers(Indeo3DecodeContext *ctx,
 
     return 0;
 }
-
-
-static av_cold void free_frame_buffers(Indeo3DecodeContext *ctx)
-{
-    int p;
-
-    ctx->width=
-    ctx->height= 0;
-
-    for (p = 0; p < 3; p++) {
-        av_freep(&ctx->planes[p].buffers[0]);
-        av_freep(&ctx->planes[p].buffers[1]);
-        ctx->planes[p].pixels[0] = ctx->planes[p].pixels[1] = 0;
-    }
-}
-
 
 /**
  *  Copy pixels of the cell(x + mv_x, y + mv_y) from the previous frame into
@@ -1129,6 +1132,7 @@ static av_cold int decode_close(AVCodecContext *avctx)
 
 AVCodec ff_indeo3_decoder = {
     .name           = "indeo3",
+    .long_name      = NULL_IF_CONFIG_SMALL("Intel Indeo 3"),
     .type           = AVMEDIA_TYPE_VIDEO,
     .id             = AV_CODEC_ID_INDEO3,
     .priv_data_size = sizeof(Indeo3DecodeContext),
@@ -1136,5 +1140,4 @@ AVCodec ff_indeo3_decoder = {
     .close          = decode_close,
     .decode         = decode_frame,
     .capabilities   = CODEC_CAP_DR1,
-    .long_name      = NULL_IF_CONFIG_SMALL("Intel Indeo 3"),
 };

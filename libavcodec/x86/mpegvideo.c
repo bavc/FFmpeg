@@ -22,11 +22,12 @@
 #include "libavutil/attributes.h"
 #include "libavutil/cpu.h"
 #include "libavutil/x86/asm.h"
+#include "libavutil/x86/cpu.h"
 #include "libavcodec/avcodec.h"
 #include "libavcodec/mpegvideo.h"
 #include "dsputil_x86.h"
 
-#if HAVE_INLINE_ASM
+#if HAVE_MMX_INLINE
 
 static void dct_unquantize_h263_intra_mmx(MpegEncContext *s,
                                   int16_t *block, int n, int qscale)
@@ -552,14 +553,14 @@ static void  denoise_dct_sse2(MpegEncContext *s, int16_t *block){
     );
 }
 
-#endif /* HAVE_INLINE_ASM */
+#endif /* HAVE_MMX_INLINE */
 
 av_cold void ff_MPV_common_init_x86(MpegEncContext *s)
 {
-#if HAVE_INLINE_ASM
-    int mm_flags = av_get_cpu_flags();
+#if HAVE_MMX_INLINE
+    int cpu_flags = av_get_cpu_flags();
 
-    if (mm_flags & AV_CPU_FLAG_MMX) {
+    if (INLINE_MMX(cpu_flags)) {
         s->dct_unquantize_h263_intra = dct_unquantize_h263_intra_mmx;
         s->dct_unquantize_h263_inter = dct_unquantize_h263_inter_mmx;
         s->dct_unquantize_mpeg1_intra = dct_unquantize_mpeg1_intra_mmx;
@@ -567,12 +568,10 @@ av_cold void ff_MPV_common_init_x86(MpegEncContext *s)
         if(!(s->flags & CODEC_FLAG_BITEXACT))
             s->dct_unquantize_mpeg2_intra = dct_unquantize_mpeg2_intra_mmx;
         s->dct_unquantize_mpeg2_inter = dct_unquantize_mpeg2_inter_mmx;
-
-        if (mm_flags & AV_CPU_FLAG_SSE2) {
-            s->denoise_dct= denoise_dct_sse2;
-        } else {
-                s->denoise_dct= denoise_dct_mmx;
-        }
+        s->denoise_dct = denoise_dct_mmx;
     }
-#endif /* HAVE_INLINE_ASM */
+    if (INLINE_SSE2(cpu_flags)) {
+        s->denoise_dct = denoise_dct_sse2;
+    }
+#endif /* HAVE_MMX_INLINE */
 }

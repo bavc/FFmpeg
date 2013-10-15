@@ -56,7 +56,7 @@ static inline void smv_img_pnt(uint8_t *dst_data[4], uint8_t *src_data[4],
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
     int i, planes_nb = 0;
 
-    if (desc->flags & PIX_FMT_HWACCEL)
+    if (desc->flags & AV_PIX_FMT_FLAG_HWACCEL)
         return;
 
     for (i = 0; i < desc->nb_components; i++)
@@ -102,8 +102,6 @@ static av_cold int smvjpeg_decode_init(AVCodecContext *avctx)
         ret = -1;
     }
 
-    avcodec_get_frame_defaults(s->picture[1]);
-    avctx->coded_frame = s->picture[1];
     codec = avcodec_find_decoder(AV_CODEC_ID_MJPEG);
     if (!codec) {
         av_log(avctx, AV_LOG_ERROR, "MJPEG codec not found\n");
@@ -113,6 +111,7 @@ static av_cold int smvjpeg_decode_init(AVCodecContext *avctx)
     s->avctx = avcodec_alloc_context3(codec);
 
     av_dict_set(&thread_opt, "threads", "1", 0);
+    s->avctx->refcounted_frames = 1;
     s->avctx->flags = avctx->flags;
     s->avctx->idct_algo = avctx->idct_algo;
     if (ff_codec_open2_recursive(s->avctx, codec, &thread_opt) < 0) {
@@ -135,9 +134,10 @@ static int smvjpeg_decode_frame(AVCodecContext *avctx, void *data, int *data_siz
     cur_frame = avpkt->pts % s->frames_per_jpeg;
 
     /* Are we at the start of a block? */
-    if (!cur_frame)
+    if (!cur_frame) {
+        av_frame_unref(mjpeg_data);
         ret = avcodec_decode_video2(s->avctx, mjpeg_data, &s->mjpeg_data_size, avpkt);
-    else if (!s->mjpeg_data_size)
+    } else if (!s->mjpeg_data_size)
         return AVERROR(EINVAL);
 
     desc = av_pix_fmt_desc_get(s->avctx->pix_fmt);
@@ -179,6 +179,7 @@ static av_cold int smvjpeg_decode_end(AVCodecContext *avctx)
     MJpegDecodeContext *jpg = &s->jpg;
 
     jpg->picture_ptr = NULL;
+    av_frame_free(&s->picture[0]);
     av_frame_free(&s->picture[1]);
     ff_codec_close_recursive(s->avctx);
     av_freep(&s->avctx);
@@ -193,12 +194,12 @@ static const AVClass smvjpegdec_class = {
 
 AVCodec ff_smvjpeg_decoder = {
     .name           = "smvjpeg",
+    .long_name      = NULL_IF_CONFIG_SMALL("SMV JPEG"),
     .type           = AVMEDIA_TYPE_VIDEO,
     .id             = AV_CODEC_ID_SMVJPEG,
     .priv_data_size = sizeof(SMVJpegDecodeContext),
     .init           = smvjpeg_decode_init,
     .close          = smvjpeg_decode_end,
     .decode         = smvjpeg_decode_frame,
-    .long_name      = NULL_IF_CONFIG_SMALL("SMV JPEG"),
     .priv_class     = &smvjpegdec_class,
 };

@@ -68,6 +68,7 @@ static const AVOption options[]={
 {"lfe_mix_level"        , "set LFE mix level"           , OFFSET(lfe_mix_level  ), AV_OPT_TYPE_FLOAT, {.dbl=0                     }, -32    , 32        , PARAM},
 {"rmvol"                , "set rematrix volume"         , OFFSET(rematrix_volume), AV_OPT_TYPE_FLOAT, {.dbl=1.0                   }, -1000  , 1000      , PARAM},
 {"rematrix_volume"      , "set rematrix volume"         , OFFSET(rematrix_volume), AV_OPT_TYPE_FLOAT, {.dbl=1.0                   }, -1000  , 1000      , PARAM},
+{"rematrix_maxval"      , "set rematrix maxval"         , OFFSET(rematrix_maxval), AV_OPT_TYPE_FLOAT, {.dbl=0.0                   }, 0      , 1000      , PARAM},
 
 {"flags"                , "set flags"                   , OFFSET(flags          ), AV_OPT_TYPE_FLAGS, {.i64=0                     }, 0      , UINT_MAX  , PARAM, "flags"},
 {"swr_flags"            , "set flags"                   , OFFSET(flags          ), AV_OPT_TYPE_FLAGS, {.i64=0                     }, 0      , UINT_MAX  , PARAM, "flags"},
@@ -467,7 +468,7 @@ int swri_realloc_audio(AudioData *a, int count){
         if(a->planar) memcpy(a->ch[i], old.ch[i], a->count*a->bps);
     }
     if(!a->planar) memcpy(a->ch[0], old.ch[0], a->count*a->ch_count*a->bps);
-    av_free(old.data);
+    av_freep(&old.data);
     a->count= count;
 
     return 1;
@@ -727,7 +728,7 @@ static int swr_convert_internal(struct SwrContext *s, AudioData *out, int out_co
             }
             s->dither.noise_pos += out_count;
         }
-//FIXME packed doesnt need more than 1 chan here!
+//FIXME packed doesn't need more than 1 chan here!
         swri_audio_convert(s->out_convert, out, conv_src, out_count);
     }
     return out_count;
@@ -747,7 +748,7 @@ int swr_convert(struct SwrContext *s, uint8_t *out_arg[SWR_CH_MAX], int out_coun
 
         reversefill_audiodata(&s->drop_temp, tmp_arg);
         s->drop_output *= -1; //FIXME find a less hackish solution
-        ret = swr_convert(s, tmp_arg, FFMIN(-s->drop_output, MAX_DROP_STEP), in_arg, in_count); //FIXME optimize but this is as good as never called so maybe it doesnt matter
+        ret = swr_convert(s, tmp_arg, FFMIN(-s->drop_output, MAX_DROP_STEP), in_arg, in_count); //FIXME optimize but this is as good as never called so maybe it doesn't matter
         s->drop_output *= -1;
         in_count = 0;
         if(ret>0) {

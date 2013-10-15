@@ -70,7 +70,7 @@ static int build_huff(const uint8_t *src, VLC *vlc, int *fsym)
         code += 0x80000000u >> (he[i].len - 1);
     }
 
-    return ff_init_vlc_sparse(vlc, FFMIN(he[last].len, 9), last + 1,
+    return ff_init_vlc_sparse(vlc, FFMIN(he[last].len, 10), last + 1,
                               bits,  sizeof(*bits),  sizeof(*bits),
                               codes, sizeof(*codes), sizeof(*codes),
                               syms,  sizeof(*syms),  sizeof(*syms), 0);
@@ -544,6 +544,7 @@ static av_cold int decode_end(AVCodecContext *avctx)
 
 AVCodec ff_utvideo_decoder = {
     .name           = "utvideo",
+    .long_name      = NULL_IF_CONFIG_SMALL("Ut Video"),
     .type           = AVMEDIA_TYPE_VIDEO,
     .id             = AV_CODEC_ID_UTVIDEO,
     .priv_data_size = sizeof(UtvideoContext),
@@ -551,5 +552,4 @@ AVCodec ff_utvideo_decoder = {
     .close          = decode_end,
     .decode         = decode_frame,
     .capabilities   = CODEC_CAP_DR1 | CODEC_CAP_FRAME_THREADS,
-    .long_name      = NULL_IF_CONFIG_SMALL("Ut Video"),
 };

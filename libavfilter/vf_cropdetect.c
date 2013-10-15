@@ -112,15 +112,23 @@ static int config_input(AVFilterLink *inlink)
     return 0;
 }
 
+#define SET_META(key, value) \
+    snprintf(buf, sizeof(buf), "%d", value);  \
+    av_dict_set(metadata, key, buf, 0)
+
 static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 {
     AVFilterContext *ctx = inlink->dst;
     CropDetectContext *s = ctx->priv;
     int bpp = s->max_pixsteps[0];
     int w, h, x, y, shrink_by;
+    AVDictionary **metadata;
+    char buf[32];
 
     // ignore first 2 frames - they may be empty
     if (++s->frame_nb > 0) {
+        metadata = avpriv_frame_get_metadatap(frame);
+
         // Reset the crop area every reset_count frames, if reset_count is > 0
         if (s->reset_count > 0 && s->frame_nb > s->reset_count) {
             s->x1 = frame->width  - 1;
@@ -181,6 +189,15 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
         h -= shrink_by;
         y += (shrink_by/2 + 1) & ~1;
 
+        SET_META("lavfi.cropdetect.x1", s->x1);
+        SET_META("lavfi.cropdetect.x2", s->x2);
+        SET_META("lavfi.cropdetect.y1", s->y1);
+        SET_META("lavfi.cropdetect.y2", s->y2);
+        SET_META("lavfi.cropdetect.w",  w);
+        SET_META("lavfi.cropdetect.h",  h);
+        SET_META("lavfi.cropdetect.x",  x);
+        SET_META("lavfi.cropdetect.y",  y);
+
         av_log(ctx, AV_LOG_INFO,
                "x1:%d x2:%d y1:%d y2:%d w:%d h:%d x:%d y:%d pts:%"PRId64" t:%f crop=%d:%d:%d:%d\n",
                s->x1, s->x2, s->y1, s->y2, w, h, x, y, frame->pts,
@@ -199,18 +216,17 @@ static const AVOption cropdetect_options[] = {
     { "round", "Value by which the width/height should be divisible", OFFSET(round),       AV_OPT_TYPE_INT, { .i64 = 16 }, 0, INT_MAX, FLAGS },
     { "reset", "Recalculate the crop area after this many frames",    OFFSET(reset_count), AV_OPT_TYPE_INT, { .i64 = 0 },  0, INT_MAX, FLAGS },
     { "reset_count", "Recalculate the crop area after this many frames",OFFSET(reset_count),AV_OPT_TYPE_INT,{ .i64 = 0 },  0, INT_MAX, FLAGS },
-    { NULL },
+    { NULL }
 };
 
 AVFILTER_DEFINE_CLASS(cropdetect);
 
 static const AVFilterPad avfilter_vf_cropdetect_inputs[] = {
     {
-        .name             = "default",
-        .type             = AVMEDIA_TYPE_VIDEO,
-        .config_props     = config_input,
-        .get_video_buffer = ff_null_get_video_buffer,
-        .filter_frame     = filter_frame,
+        .name         = "default",
+        .type         = AVMEDIA_TYPE_VIDEO,
+        .config_props = config_input,
+        .filter_frame = filter_frame,
     },
     { NULL }
 };
@@ -224,14 +240,13 @@ static const AVFilterPad avfilter_vf_cropdetect_outputs[] = {
 };
 
 AVFilter avfilter_vf_cropdetect = {
-    .name        = "cropdetect",
-    .description = NULL_IF_CONFIG_SMALL("Auto-detect crop size."),
-
-    .priv_size = sizeof(CropDetectContext),
-    .priv_class = &cropdetect_class,
-    .init      = init,
+    .name          = "cropdetect",
+    .description   = NULL_IF_CONFIG_SMALL("Auto-detect crop size."),
+    .priv_size     = sizeof(CropDetectContext),
+    .priv_class    = &cropdetect_class,
+    .init          = init,
     .query_formats = query_formats,
-    .inputs    = avfilter_vf_cropdetect_inputs,
-    .outputs   = avfilter_vf_cropdetect_outputs,
-    .flags     = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
+    .inputs        = avfilter_vf_cropdetect_inputs,
+    .outputs       = avfilter_vf_cropdetect_outputs,
+    .flags         = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
 };

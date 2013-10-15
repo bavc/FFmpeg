@@ -35,6 +35,7 @@
 
 #include <stddef.h>
 
+#include "libavutil/attributes.h"
 #include "libavutil/avutil.h"
 #include "libavutil/dict.h"
 #include "libavutil/frame.h"
@@ -633,14 +634,14 @@ struct AVFilterContext {
     AVFilterPad   *input_pads;      ///< array of input pads
     AVFilterLink **inputs;          ///< array of pointers to input links
 #if FF_API_FOO_COUNT
-    unsigned input_count;           ///< @deprecated use nb_inputs
+    attribute_deprecated unsigned input_count; ///< @deprecated use nb_inputs
 #endif
     unsigned    nb_inputs;          ///< number of input pads
 
     AVFilterPad   *output_pads;     ///< array of output pads
     AVFilterLink **outputs;         ///< array of pointers to output links
 #if FF_API_FOO_COUNT
-    unsigned output_count;          ///< @deprecated use nb_outputs
+    attribute_deprecated unsigned output_count; ///< @deprecated use nb_outputs
 #endif
     unsigned    nb_outputs;         ///< number of output pads
 
@@ -1125,6 +1126,35 @@ const AVClass *avfilter_get_class(void);
 
 typedef struct AVFilterGraphInternal AVFilterGraphInternal;
 
+/**
+ * A function pointer passed to the @ref AVFilterGraph.execute callback to be
+ * executed multiple times, possibly in parallel.
+ *
+ * @param ctx the filter context the job belongs to
+ * @param arg an opaque parameter passed through from @ref
+ *            AVFilterGraph.execute
+ * @param jobnr the index of the job being executed
+ * @param nb_jobs the total number of jobs
+ *
+ * @return 0 on success, a negative AVERROR on error
+ */
+typedef int (avfilter_action_func)(AVFilterContext *ctx, void *arg, int jobnr, int nb_jobs);
+
+/**
+ * A function executing multiple jobs, possibly in parallel.
+ *
+ * @param ctx the filter context to which the jobs belong
+ * @param func the function to be called multiple times
+ * @param arg the argument to be passed to func
+ * @param ret a nb_jobs-sized array to be filled with return values from each
+ *            invocation of func
+ * @param nb_jobs the number of jobs to execute
+ *
+ * @return 0 on success, a negative AVERROR on error
+ */
+typedef int (avfilter_execute_func)(AVFilterContext *ctx, avfilter_action_func *func,
+                                    void *arg, int *ret, int nb_jobs);
+
 typedef struct AVFilterGraph {
     const AVClass *av_class;
 #if FF_API_FOO_COUNT
@@ -1167,6 +1197,27 @@ typedef struct AVFilterGraph {
      * Opaque object for libavfilter internal use.
      */
     AVFilterGraphInternal *internal;
+
+    /**
+     * Opaque user data. May be set by the caller to an arbitrary value, e.g. to
+     * be used from callbacks like @ref AVFilterGraph.execute.
+     * Libavfilter will not touch this field in any way.
+     */
+    void *opaque;
+
+    /**
+     * This callback may be set by the caller immediately after allocating the
+     * graph and before adding any filters to it, to provide a custom
+     * multithreading implementation.
+     *
+     * If set, filters with slice threading capability will call this callback
+     * to execute multiple jobs in parallel.
+     *
+     * If this field is left unset, libavfilter will use its internal
+     * implementation, which may or may not be multithreaded depending on the
+     * platform and build options.
+     */
+    avfilter_execute_func *execute;
 
     char *aresample_swr_opts; ///< swr options to use for the auto-inserted aresample filters, Access ONLY through AVOptions
 
@@ -1241,7 +1292,7 @@ int avfilter_graph_add_filter(AVFilterGraph *graphctx, AVFilterContext *filter);
  * @return a negative AVERROR error code in case of failure, a non
  * negative value otherwise
  */
-int avfilter_graph_create_filter(AVFilterContext **filt_ctx, AVFilter *filt,
+int avfilter_graph_create_filter(AVFilterContext **filt_ctx, const AVFilter *filt,
                                  const char *name, const char *args, void *opaque,
                                  AVFilterGraph *graph_ctx);
 
@@ -1311,6 +1362,49 @@ AVFilterInOut *avfilter_inout_alloc(void);
  */
 void avfilter_inout_free(AVFilterInOut **inout);
 
+#if AV_HAVE_INCOMPATIBLE_LIBAV_ABI || !FF_API_OLD_GRAPH_PARSE
+/**
+ * Add a graph described by a string to a graph.
+ *
+ * @note The caller must provide the lists of inputs and outputs,
+ * which therefore must be known before calling the function.
+ *
+ * @note The inputs parameter describes inputs of the already existing
+ * part of the graph; i.e. from the point of view of the newly created
+ * part, they are outputs. Similarly the outputs parameter describes
+ * outputs of the already existing filters, which are provided as
+ * inputs to the parsed filters.
+ *
+ * @param graph   the filter graph where to link the parsed grap context
+ * @param filters string to be parsed
+ * @param inputs  linked list to the inputs of the graph
+ * @param outputs linked list to the outputs of the graph
+ * @return zero on success, a negative AVERROR code on error
+ */
+int avfilter_graph_parse(AVFilterGraph *graph, const char *filters,
+                         AVFilterInOut *inputs, AVFilterInOut *outputs,
+                         void *log_ctx);
+#else
+/**
+ * Add a graph described by a string to a graph.
+ *
+ * @param graph   the filter graph where to link the parsed graph context
+ * @param filters string to be parsed
+ * @param inputs  pointer to a linked list to the inputs of the graph, may be NULL.
+ *                If non-NULL, *inputs is updated to contain the list of open inputs
+ *                after the parsing, should be freed with avfilter_inout_free().
+ * @param outputs pointer to a linked list to the outputs of the graph, may be NULL.
+ *                If non-NULL, *outputs is updated to contain the list of open outputs
+ *                after the parsing, should be freed with avfilter_inout_free().
+ * @return non negative on success, a negative AVERROR code on error
+ * @deprecated Use avfilter_graph_parse_ptr() instead.
+ */
+attribute_deprecated
+int avfilter_graph_parse(AVFilterGraph *graph, const char *filters,
+                         AVFilterInOut **inputs, AVFilterInOut **outputs,
+                         void *log_ctx);
+#endif
+
 /**
  * Add a graph described by a string to a graph.
  *
@@ -1324,9 +1418,9 @@ void avfilter_inout_free(AVFilterInOut **inout);
  *                after the parsing, should be freed with avfilter_inout_free().
  * @return non negative on success, a negative AVERROR code on error
  */
-int avfilter_graph_parse(AVFilterGraph *graph, const char *filters,
-                         AVFilterInOut **inputs, AVFilterInOut **outputs,
-                         void *log_ctx);
+int avfilter_graph_parse_ptr(AVFilterGraph *graph, const char *filters,
+                             AVFilterInOut **inputs, AVFilterInOut **outputs,
+                             void *log_ctx);
 
 /**
  * Add a graph described by a string to a graph.
@@ -1341,21 +1435,13 @@ int avfilter_graph_parse(AVFilterGraph *graph, const char *filters,
  *                     caller using avfilter_inout_free().
  * @return zero on success, a negative AVERROR code on error
  *
- * @note the difference between avfilter_graph_parse2() and
- * avfilter_graph_parse() is that in avfilter_graph_parse(), the caller provides
- * the lists of inputs and outputs, which therefore must be known before calling
- * the function. On the other hand, avfilter_graph_parse2() \em returns the
- * inputs and outputs that are left unlinked after parsing the graph and the
- * caller then deals with them. Another difference is that in
- * avfilter_graph_parse(), the inputs parameter describes inputs of the
- * <em>already existing</em> part of the graph; i.e. from the point of view of
- * the newly created part, they are outputs. Similarly the outputs parameter
- * describes outputs of the already existing filters, which are provided as
- * inputs to the parsed filters.
- * avfilter_graph_parse2() takes the opposite approach -- it makes no reference
- * whatsoever to already existing parts of the graph and the inputs parameter
- * will on return contain inputs of the newly parsed part of the graph.
- * Analogously the outputs parameter will contain outputs of the newly created
+ * @note This function returns the inputs and outputs that are left
+ * unlinked after parsing the graph and the caller then deals with
+ * them.
+ * @note This function makes no reference whatsoever to already
+ * existing parts of the graph and the inputs parameter will on return
+ * contain inputs of the newly parsed part of the graph.  Analogously
+ * the outputs parameter will contain outputs of the newly created
  * filters.
  */
 int avfilter_graph_parse2(AVFilterGraph *graph, const char *filters,

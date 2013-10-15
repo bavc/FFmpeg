@@ -35,7 +35,6 @@
 #include "libavutil/colorspace.h"
 #include "libavutil/avassert.h"
 #include "libavutil/imgutils.h"
-#include "libavutil/opt.h"
 #include "libavutil/parseutils.h"
 #include "libavutil/mathematics.h"
 #include "libavutil/opt.h"
@@ -214,7 +213,7 @@ static AVFrame *get_video_buffer(AVFilterLink *inlink, int w, int h)
     frame->width  = w;
     frame->height = h;
 
-    for (plane = 0; plane < 4 && frame->data[plane]; plane++) {
+    for (plane = 0; plane < 4 && frame->data[plane] && frame->linesize[plane]; plane++) {
         int hsub = s->draw.hsub[plane];
         int vsub = s->draw.vsub[plane];
         frame->data[plane] += (s->x >> hsub) * s->draw.pixelstep[plane] +
@@ -260,7 +259,6 @@ static int buffer_needs_copy(PadContext *s, AVFrame *frame, AVBufferRef *buf)
             (buf->data + buf->size) - end < req_end)
             return 1;
 
-#define SIGN(x) ((x) > 0 ? 1 : -1)
         for (j = 0; j < FF_ARRAY_ELEMS(planes) && planes[j] >= 0; j++) {
             int vsub1 = s->draw.vsub[planes[j]];
             uint8_t *start1 = frame->data[planes[j]];
@@ -269,8 +267,8 @@ static int buffer_needs_copy(PadContext *s, AVFrame *frame, AVBufferRef *buf)
             if (i == j)
                 continue;
 
-            if (SIGN(start - end1) != SIGN(start - end1 - req_start) ||
-                SIGN(end - start1) != SIGN(end - start1 + req_end))
+            if (FFSIGN(start - end1) != FFSIGN(start - end1 - req_start) ||
+                FFSIGN(end - start1) != FFSIGN(end - start1 + req_end))
                 return 1;
         }
     }
@@ -312,7 +310,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *in)
         int i;
 
         out = in;
-        for (i = 0; i < 4 && out->data[i]; i++) {
+        for (i = 0; i < 4 && out->data[i] && out->linesize[i]; i++) {
             int hsub = s->draw.hsub[i];
             int vsub = s->draw.vsub[i];
             out->data[i] -= (s->x >> hsub) * s->draw.pixelstep[i] +
@@ -368,7 +366,7 @@ static const AVOption pad_options[] = {
     { "x",      "set the x offset expression for the input image position", OFFSET(x_expr), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
     { "y",      "set the y offset expression for the input image position", OFFSET(y_expr), AV_OPT_TYPE_STRING, {.str = "0"}, CHAR_MIN, CHAR_MAX, FLAGS },
     { "color",  "set the color of the padded area border", OFFSET(rgba_color), AV_OPT_TYPE_COLOR, {.str = "black"}, .flags = FLAGS },
-    { NULL },
+    { NULL }
 };
 
 AVFILTER_DEFINE_CLASS(pad);
@@ -395,13 +393,10 @@ static const AVFilterPad avfilter_vf_pad_outputs[] = {
 
 AVFilter avfilter_vf_pad = {
     .name          = "pad",
-    .description   = NULL_IF_CONFIG_SMALL("Pad input image to width:height[:x:y[:color]] (default x and y: 0, default color: black)."),
-
+    .description   = NULL_IF_CONFIG_SMALL("Pad the input video."),
     .priv_size     = sizeof(PadContext),
     .priv_class    = &pad_class,
     .query_formats = query_formats,
-
-    .inputs    = avfilter_vf_pad_inputs,
-
-    .outputs   = avfilter_vf_pad_outputs,
+    .inputs        = avfilter_vf_pad_inputs,
+    .outputs       = avfilter_vf_pad_outputs,
 };

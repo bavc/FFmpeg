@@ -26,6 +26,10 @@
 
 #define MAX_URL_SIZE 4096
 
+/** size of probe buffer, for guessing file type from file contents */
+#define PROBE_BUF_MIN 2048
+#define PROBE_BUF_MAX (1<<20)
+
 #ifdef DEBUG
 #    define hex_dump_debug(class, buf, size) av_hex_dump_log(class, AV_LOG_DEBUG, buf, size)
 #else
@@ -242,6 +246,9 @@ int ff_seek_frame_binary(AVFormatContext *s, int stream_index,
  */
 void ff_update_cur_dts(AVFormatContext *s, AVStream *ref_st, int64_t timestamp);
 
+int ff_find_last_ts(AVFormatContext *s, int stream_index, int64_t *ts, int64_t *pos,
+                    int64_t (*read_timestamp)(struct AVFormatContext *, int , int64_t *, int64_t ));
+
 /**
  * Perform a binary search using read_timestamp().
  *
@@ -353,5 +360,14 @@ AVRational ff_choose_timebase(AVFormatContext *s, AVStream *st, int min_precissi
  * Generate standard extradata for AVC-Intra based on width/height and field order.
  */
 void ff_generate_avci_extradata(AVStream *st);
+
+/**
+ * Allocate extradata with additional FF_INPUT_BUFFER_PADDING_SIZE at end
+ * which is always set to 0.
+ *
+ * @param size size of extradata
+ * @return 0 if OK, AVERROR_xxx on error
+ */
+int ff_alloc_extradata(AVCodecContext *avctx, int size);
 
 #endif /* AVFORMAT_INTERNAL_H */

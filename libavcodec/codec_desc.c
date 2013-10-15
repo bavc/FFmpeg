@@ -74,7 +74,7 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .id        = AV_CODEC_ID_RV20,
         .type      = AVMEDIA_TYPE_VIDEO,
         .name      = "rv20",
-        .long_name = NULL_IF_CONFIG_SMALL("RealVideo 1.0"),
+        .long_name = NULL_IF_CONFIG_SMALL("RealVideo 2.0"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
     {
@@ -223,6 +223,13 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .type      = AVMEDIA_TYPE_VIDEO,
         .name      = "h264",
         .long_name = NULL_IF_CONFIG_SMALL("H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10"),
+        .props     = AV_CODEC_PROP_LOSSY | AV_CODEC_PROP_LOSSLESS,
+    },
+    {
+        .id        = AV_CODEC_ID_HEVC,
+        .type      = AVMEDIA_TYPE_VIDEO,
+        .name      = "hevc",
+        .long_name = NULL_IF_CONFIG_SMALL("H.265 / HEVC"),
         .props     = AV_CODEC_PROP_LOSSY | AV_CODEC_PROP_LOSSLESS,
     },
     {
@@ -943,7 +950,7 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .id        = AV_CODEC_ID_DPX,
         .type      = AVMEDIA_TYPE_VIDEO,
         .name      = "dpx",
-        .long_name = NULL_IF_CONFIG_SMALL("DPX image"),
+        .long_name = NULL_IF_CONFIG_SMALL("DPX (Digital Picture Exchange) image"),
         .props     = AV_CODEC_PROP_INTRA_ONLY | AV_CODEC_PROP_LOSSLESS,
     },
     {
@@ -1035,13 +1042,6 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .type      = AVMEDIA_TYPE_VIDEO,
         .name      = "vp9",
         .long_name = NULL_IF_CONFIG_SMALL("Google VP9"),
-        .props     = AV_CODEC_PROP_LOSSY,
-    },
-    {
-        .id        = AV_CODEC_ID_WEBP,
-        .type      = AVMEDIA_TYPE_VIDEO,
-        .name      = "webp",
-        .long_name = NULL_IF_CONFIG_SMALL("WebP"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
     {
@@ -1385,6 +1385,14 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .name      = "g2m",
         .long_name = NULL_IF_CONFIG_SMALL("Go2Meeting"),
         .props     = AV_CODEC_PROP_LOSSY,
+    },
+    {
+        .id        = AV_CODEC_ID_WEBP,
+        .type      = AVMEDIA_TYPE_VIDEO,
+        .name      = "webp",
+        .long_name = NULL_IF_CONFIG_SMALL("WebP"),
+        .props     = AV_CODEC_PROP_INTRA_ONLY | AV_CODEC_PROP_LOSSY |
+                     AV_CODEC_PROP_LOSSLESS,
     },
 
     /* various PCM "codecs" */
@@ -2129,9 +2137,10 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .id        = AV_CODEC_ID_ATRAC3,
         .type      = AVMEDIA_TYPE_AUDIO,
         .name      = "atrac3",
-        .long_name = NULL_IF_CONFIG_SMALL("Atrac 3 (Adaptive TRansform Acoustic Coding 3)"),
+        .long_name = NULL_IF_CONFIG_SMALL("ATRAC3 (Adaptive TRansform Acoustic Coding 3)"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
+#if FF_API_VOXWARE
     {
         .id        = AV_CODEC_ID_VOXWARE,
         .type      = AVMEDIA_TYPE_AUDIO,
@@ -2139,6 +2148,7 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .long_name = NULL_IF_CONFIG_SMALL("Voxware RT29 Metasound"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
+#endif
     {
         .id        = AV_CODEC_ID_APE,
         .type      = AVMEDIA_TYPE_AUDIO,
@@ -2192,7 +2202,7 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .id        = AV_CODEC_ID_ATRAC3P,
         .type      = AVMEDIA_TYPE_AUDIO,
         .name      = "atrac3p",
-        .long_name = NULL_IF_CONFIG_SMALL("Sony ATRAC3+"),
+        .long_name = NULL_IF_CONFIG_SMALL("ATRAC3+ (Adaptive TRansform Acoustic Coding 3+)"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
     {
@@ -2241,7 +2251,7 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .id        = AV_CODEC_ID_ATRAC1,
         .type      = AVMEDIA_TYPE_AUDIO,
         .name      = "atrac1",
-        .long_name = NULL_IF_CONFIG_SMALL("Atrac 1 (Adaptive TRansform Acoustic Coding)"),
+        .long_name = NULL_IF_CONFIG_SMALL("ATRAC1 (Adaptive TRansform Acoustic Coding)"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
     {
@@ -2387,6 +2397,13 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .name      = "tak",
         .long_name = NULL_IF_CONFIG_SMALL("TAK (Tom's lossless Audio Kompressor)"),
         .props     = AV_CODEC_PROP_LOSSLESS,
+    },
+    {
+        .id        = AV_CODEC_ID_METASOUND,
+        .type      = AVMEDIA_TYPE_AUDIO,
+        .name      = "metasound",
+        .long_name = NULL_IF_CONFIG_SMALL("Voxware MetaSound"),
+        .props     = AV_CODEC_PROP_LOSSY,
     },
     {
         .id        = AV_CODEC_ID_EVRC,
