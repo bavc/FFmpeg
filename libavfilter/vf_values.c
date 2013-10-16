@@ -301,9 +301,11 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
         }
         
     }
+    
     // especially if all I want now is the 50th percentile.
-
-    median = order[985 * h / 1000] ;
+    // or 98th depending on what mood the head switching pattern is in.
+    
+    median = order[98 * h / 100] ;
     
     // remove possible matting
     for (y=0;y<h;y++)
