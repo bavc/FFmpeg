@@ -121,8 +121,6 @@ static const char *const filter_names[]     = { "tout", "vrep", "rang", "head", 
 #define OFFSET(x) offsetof(valuesContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 
-int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z);
-
 static const AVOption values_options[] = {
     {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {"f",        "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
@@ -222,7 +220,7 @@ static int config_props(AVFilterLink *outlink)
     return 0;
 }
 
-int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
+static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
 {
     int dif;
 
