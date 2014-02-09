@@ -156,6 +156,8 @@ static av_cold void uninit(AVFilterContext *ctx)
 
     av_freep(&values->filter_head_border);
     av_freep(&values->filter_head_order);
+
+    av_freep(&values->vrep_line);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -197,6 +199,13 @@ static int config_props(AVFilterLink *outlink)
         values->filter_head_border = av_malloc(inlink->h * sizeof(*values->filter_head_border));
         values->filter_head_order  = av_malloc(inlink->h * sizeof(*values->filter_head_order));
         if (!values->filter_head_border || !values->filter_head_order)
+            return AVERROR(ENOMEM);
+    }
+
+    if ((values->filters & 1<<FILTER_VREP) ||
+        values->outfilter == FILTER_VREP) {
+        values->vrep_line = av_malloc(inlink->h * sizeof(*values->vrep_line));
+        if (!values->vrep_line)
             return AVERROR(ENOMEM);
     }
 
@@ -382,8 +391,6 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
     int i,y;
     int lw = p->linesize[0];
 
-    values->vrep_line = (char *) malloc (h);
-
     for (y=4;y<h;y++)
     {
         int totdiff = 0;
@@ -395,10 +402,7 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
             totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
 
         /* this value should be definable */
-        if (totdiff < w ) {
-            values->vrep_line[y] = 1;
-        }
-
+        values->vrep_line[y] = totdiff < w;
     }
 
 }
@@ -414,7 +418,6 @@ static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, in
 
 static void filter_uninit_vrep(valuesContext *values)
 {
-    free (values->vrep_line);
 }
 
 
