@@ -457,8 +457,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
 
             //if (in->interlaced_frame && (j % 2 == 0)) // every second line
-            if (j % 2 == 0) // every second line
-            {
+            if (!(j & 1)) { // every second line
 
                // get bottom field
                // should check that we are not currently at the bottom line.
