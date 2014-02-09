@@ -711,7 +711,7 @@ static const AVFilterPad values_outputs[] = {
     { NULL }
 };
 
-AVFilter avfilter_vf_values = {
+AVFilter ff_vf_values = {
     .name          = "values",
     .description   = ".",
     .init          = init,

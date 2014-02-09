@@ -13,6 +13,9 @@ fate-exr-slice-zip1: CMD = framecrc -i $(TARGET_SAMPLES)/exr/rgba_slice_zip1.exr
 FATE_EXR += fate-exr-slice-zip16
 fate-exr-slice-zip16: CMD = framecrc -i $(TARGET_SAMPLES)/exr/rgba_slice_zip16.exr -pix_fmt rgba64le
 
+FATE_EXR += fate-exr-slice-pxr24
+fate-exr-slice-pxr24: CMD = framecrc -i $(TARGET_SAMPLES)/exr/rgb_slice_pxr24.exr -pix_fmt rgb48le
+
 FATE_EXR-$(call DEMDEC, IMAGE2, EXR) += $(FATE_EXR)
 
 FATE_IMAGE += $(FATE_EXR-yes)
@@ -20,6 +23,9 @@ fate-exr: $(FATE_EXR-yes)
 
 FATE_IMAGE-$(call DEMDEC, IMAGE2, PICTOR) += fate-pictor
 fate-pictor: CMD = framecrc -i $(TARGET_SAMPLES)/pictor/MFISH.PIC -pix_fmt rgb24
+
+FATE_IMAGE-$(call PARSERDEMDEC, PNG, IMAGE2PIPE, PNG) += fate-pngparser
+fate-pngparser: CMD = framecrc -f image2pipe -i $(TARGET_SAMPLES)/png1/feed_4x_concat.png -pix_fmt rgba
 
 FATE_IMAGE-$(call DEMDEC, IMAGE2, PTX) += fate-ptx
 fate-ptx: CMD = framecrc -i $(TARGET_SAMPLES)/ptx/_113kw_pic.ptx -pix_fmt rgb24

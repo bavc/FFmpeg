@@ -329,7 +329,7 @@ static const AVFilterPad avfilter_vf_broadcast_outputs[] = {
 };
 
 
-AVFilter avfilter_vf_broadcast = {
+AVFilter ff_vf_broadcast = {
     .name      = "broadcast",
 	.description = "clips or scales full swing levels to broadcast swing.",
 	

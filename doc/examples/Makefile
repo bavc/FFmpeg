@@ -11,14 +11,17 @@ CFLAGS += -Wall -g
 CFLAGS := $(shell pkg-config --cflags $(FFMPEG_LIBS)) $(CFLAGS)
 LDLIBS := $(shell pkg-config --libs $(FFMPEG_LIBS)) $(LDLIBS)
 
-EXAMPLES=       decoding_encoding                  \
-                demuxing                           \
+EXAMPLES=       avio_reading                       \
+                decoding_encoding                  \
+                demuxing_decoding                  \
                 filtering_video                    \
                 filtering_audio                    \
                 metadata                           \
                 muxing                             \
+                remuxing                           \
                 resampling_audio                   \
                 scaling_video                      \
+                transcode_aac                      \
 
 OBJS=$(addsuffix .o,$(EXAMPLES))
 

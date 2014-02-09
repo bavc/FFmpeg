@@ -338,6 +338,8 @@ typedef struct AVProbeData {
 } AVProbeData;
 
 #define AVPROBE_SCORE_RETRY (AVPROBE_SCORE_MAX/4)
+#define AVPROBE_SCORE_STREAM_RETRY (AVPROBE_SCORE_MAX/4-1)
+
 #define AVPROBE_SCORE_EXTENSION  50 ///< score for file extension
 #define AVPROBE_SCORE_MAX       100 ///< maximum score
 
@@ -453,6 +455,11 @@ typedef struct AVOutputFormat {
 
     void (*get_output_timestamp)(struct AVFormatContext *s, int stream,
                                  int64_t *dts, int64_t *wall);
+    /**
+     * Allows sending messages from application to device.
+     */
+    int (*control_message)(struct AVFormatContext *s, int type,
+                           void *data, size_t data_size);
 } AVOutputFormat;
 /**
  * @}
@@ -756,6 +763,7 @@ typedef struct AVStream {
         int64_t last_dts;
         int64_t duration_gcd;
         int duration_count;
+        int64_t rfps_duration_sum;
         double (*duration_error)[2][MAX_STD_TIMEBASES];
         int64_t codec_info_duration;
         int64_t codec_info_duration_fields;
@@ -775,6 +783,11 @@ typedef struct AVStream {
 
     int pts_wrap_bits; /**< number of bits in pts (used for wrapping control) */
 
+#if FF_API_REFERENCE_DTS
+    /* a hack to keep ABI compatibility for ffmpeg and other applications, which accesses parser even
+     * though it should not */
+    int64_t do_not_use;
+#endif
     // Timestamp generation support:
     /**
      * Timestamp corresponding to the last dts sync point.
@@ -783,7 +796,6 @@ typedef struct AVStream {
      * a DTS is received from the underlying container. Otherwise set to
      * AV_NOPTS_VALUE by default.
      */
-    int64_t reference_dts;
     int64_t first_dts;
     int64_t cur_dts;
     int64_t last_IP_pts;
@@ -888,6 +900,10 @@ typedef struct AVStream {
      */
     int pts_wrap_behavior;
 
+    /**
+     * Internal data to prevent doing update_initial_durations() twice
+     */
+    int update_initial_durations_done;
 } AVStream;
 
 AVRational av_stream_get_r_frame_rate(const AVStream *s);
@@ -939,6 +955,13 @@ typedef struct AVChapter {
 
 
 /**
+ * Callback used by devices to communicate with application.
+ */
+typedef int (*av_format_control_message)(struct AVFormatContext *s, int type,
+                                         void *data, size_t data_size);
+
+
+/**
  * The duration of a video can be estimated through various ways, and this enum can be used
  * to know how the duration was estimated.
  */
@@ -947,6 +970,8 @@ enum AVDurationEstimationMethod {
     AVFMT_DURATION_FROM_STREAM, ///< Duration estimated from a stream with a known duration
     AVFMT_DURATION_FROM_BITRATE ///< Duration estimated from bitrate (less accurate)
 };
+
+typedef struct AVFormatInternal AVFormatInternal;
 
 /**
  * Format I/O context.
@@ -1158,6 +1183,24 @@ typedef struct AVFormatContext {
 #define FF_FDEBUG_TS        0x0001
 
     /**
+     * Maximum buffering duration for interleaving.
+     *
+     * To ensure all the streams are interleaved correctly,
+     * av_interleaved_write_frame() will wait until it has at least one packet
+     * for each stream before actually writing any packets to the output file.
+     * When some streams are "sparse" (i.e. there are large gaps between
+     * successive packets), this can result in excessive buffering.
+     *
+     * This field specifies the maximum difference between the timestamps of the
+     * first and the last packet in the muxing queue, above which libavformat
+     * will output a packet regardless of whether it has queued a packet for all
+     * the streams.
+     *
+     * Muxing only, set by the caller before avformat_write_header().
+     */
+    int64_t max_interleave_delta;
+
+    /**
      * Transport stream id.
      * This will be moved into demuxer private options. Thus no API/ABI compatibility
      */
@@ -1231,14 +1274,14 @@ typedef struct AVFormatContext {
     /**
      * Correct single timestamp overflows
      * - encoding: unused
-     * - decoding: Set by user via AVOPtions (NO direct access)
+     * - decoding: Set by user via AVOptions (NO direct access)
      */
     unsigned int correct_ts_overflow;
 
     /**
      * Force seeking to any (also non key) frames.
      * - encoding: unused
-     * - decoding: Set by user via AVOPtions (NO direct access)
+     * - decoding: Set by user via AVOptions (NO direct access)
      */
     int seek2any;
 
@@ -1309,6 +1352,12 @@ typedef struct AVFormatContext {
     AVRational offset_timebase;
 
     /**
+     * An opaque field for libavformat internal usage.
+     * Must not be accessed in any way by callers.
+     */
+    AVFormatInternal *internal;
+
+    /**
      * IO repositioned flag.
      * This is set by avformat when the underlaying IO context read pointer
      * is repositioned, for example when doing byte based seeking.
@@ -1339,6 +1388,31 @@ typedef struct AVFormatContext {
      * Demuxing: Set by user via av_format_set_subtitle_codec (NO direct access).
      */
     AVCodec *subtitle_codec;
+
+    /**
+     * Number of bytes to be written as padding in a metadata header.
+     * Demuxing: Unused.
+     * Muxing: Set by user via av_format_set_metadata_header_padding.
+     */
+    int metadata_header_padding;
+
+    /**
+     * User data.
+     * This is a place for some private data of the user.
+     * Mostly usable with control_message_cb or any future callbacks in device's context.
+     */
+    void *opaque;
+
+    /**
+     * Callback used by devices to communicate with application.
+     */
+    av_format_control_message control_message_cb;
+
+    /**
+     * Output timestamp offset, in microseconds.
+     * Muxing: set by user via AVOptions (NO direct access)
+     */
+    int64_t output_ts_offset;
 } AVFormatContext;
 
 int av_format_get_probe_score(const AVFormatContext *s);
@@ -1348,6 +1422,12 @@ AVCodec * av_format_get_audio_codec(const AVFormatContext *s);
 void      av_format_set_audio_codec(AVFormatContext *s, AVCodec *c);
 AVCodec * av_format_get_subtitle_codec(const AVFormatContext *s);
 void      av_format_set_subtitle_codec(AVFormatContext *s, AVCodec *c);
+int       av_format_get_metadata_header_padding(const AVFormatContext *s);
+void      av_format_set_metadata_header_padding(AVFormatContext *s, int c);
+void *    av_format_get_opaque(const AVFormatContext *s);
+void      av_format_set_opaque(AVFormatContext *s, void *opaque);
+av_format_control_message av_format_get_control_message_cb(const AVFormatContext *s);
+void      av_format_set_control_message_cb(AVFormatContext *s, av_format_control_message callback);
 
 /**
  * Returns the method used to set ctx->duration.
@@ -2179,6 +2259,14 @@ const struct AVCodecTag *avformat_get_riff_video_tags(void);
  * @return the table mapping RIFF FourCCs for audio to AVCodecID.
  */
 const struct AVCodecTag *avformat_get_riff_audio_tags(void);
+/**
+ * @return the table mapping MOV FourCCs for video to libavcodec AVCodecID.
+ */
+const struct AVCodecTag *avformat_get_mov_video_tags(void);
+/**
+ * @return the table mapping MOV FourCCs for audio to AVCodecID.
+ */
+const struct AVCodecTag *avformat_get_mov_audio_tags(void);
 
 /**
  * @}
