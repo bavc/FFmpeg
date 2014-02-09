@@ -126,9 +126,6 @@ static av_cold int init(AVFilterContext *ctx)
 
     if (values->filename)
         values->fh = fopen(values->filename, "w");
-
-    av_log(ctx, AV_LOG_DEBUG, "<<< init().\n");
-
     return 0;
 }
 
@@ -166,8 +163,6 @@ static int config_props(AVFilterLink *outlink)
     values->hsub = desc->log2_chroma_w;
     values->vsub = desc->log2_chroma_h;
 
-    av_log(ctx, AV_LOG_DEBUG, ">>> config_props().\n");
-
     outlink->w = inlink->w;
     outlink->h = inlink->h;
 
@@ -176,8 +171,6 @@ static int config_props(AVFilterLink *outlink)
 
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
-
-    av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
 
     if ((values->filters & 1<<FILTER_HEADSWITCHING) ||
         values->outfilter == FILTER_HEADSWITCHING) {
@@ -388,8 +381,6 @@ static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, in
 
 static int filter_frame(AVFilterLink *link, AVFrame *in)
 {
-
-    AVFilterContext *ctx = link->src;
     valuesContext *values = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFrame *out;
@@ -416,8 +407,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int filtot[FILT_NUMB] = {0};
     AVFrame *prev;
 
-    av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
-
     if (!values->frame_prev)
         values->frame_prev = av_frame_clone(in);
     prev = values->frame_prev;
@@ -443,14 +432,11 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     minv = in->data[2][0];
     maxv = in->data[2][0];
 
-    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for(j=0...)\n");
-
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if ((values->filters & 1<<fil) || values->outfilter == fil) {
             filter_init[fil](values, in,link->w,link->h);
         }
     }
-
 
     for (j = 0; j < link->h; j++) {
         for (i = 0; i < link->w; i++) {
@@ -565,12 +551,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (highv == -1 && accv >= chighp) highv = fil;
     }
 
-    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() av_frame_free()\n");
-
     av_frame_free(&values->frame_prev);
-
-    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() prev->data = in->data\n");
-
     values->frame_prev = av_frame_clone(in);
 
 #define SET_META(key, fmt, val) do {                                \
@@ -599,8 +580,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YDIF1",  "%g", 1.0 * dify1 / (values->fs/2));
     SET_META("YDIF2",  "%g", 1.0 * dify2 / (values->fs/2));
 
-    av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
-
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filters & 1<<fil) {
        //     SET_META(filter_metanames[fil],"%g",1.0 * filtot[fil]/values->fs);
@@ -615,7 +594,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     if (!direct)
         av_frame_free(&in);
-    av_log(ctx, AV_LOG_DEBUG, "<<< filter_frame().\n");
     return ff_filter_frame(outlink, out);
 }
 
