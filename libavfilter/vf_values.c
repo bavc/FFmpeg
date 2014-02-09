@@ -316,18 +316,17 @@ static void filter_uninit_range(valuesContext *values)
 
 static int filter_range(valuesContext *values, const AVFrame *p, int y, int w, int h)
 {
-    int lw = p->linesize[0];
-    int cw = p->linesize[1]; // assume linesize[1] == linesize[2]
-
     int x, score = 0;
+    const int yc = FF_CEIL_RSHIFT(y, values->vsub);
+    const uint8_t *pluma    = &p->data[0][y  * p->linesize[0]];
+    const uint8_t *pchromau = &p->data[1][yc * p->linesize[1]];
+    const uint8_t *pchromav = &p->data[2][yc * p->linesize[2]];
 
     for (x = 0; x < w; x++) {
-        int luma = p->data[0][y * lw + x];
-        int cy = FF_CEIL_RSHIFT(y, values->vsub);
-        int cx = FF_CEIL_RSHIFT(x, values->hsub);
-        int chromau = p->data[1][cy*cw+cx];
-        int chromav = p->data[2][cy*cw+cx];
-
+        const int xc = FF_CEIL_RSHIFT(x, values->hsub);
+        const int luma    = pluma[x];
+        const int chromau = pchromau[xc];
+        const int chromav = pchromav[xc];
         score += luma    < 16 || luma    > 235 ||
                  chromau < 16 || chromau > 240 ||
                  chromav < 16 || chromav > 240;
