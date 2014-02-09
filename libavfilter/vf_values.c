@@ -61,6 +61,7 @@ typedef struct
 
     char* vrep_line;
     unsigned int * filter_head_border;
+    unsigned int * filter_head_order;
 
 } valuesContext;
 
@@ -152,6 +153,9 @@ static av_cold void uninit(AVFilterContext *ctx)
     if (values->fh)
         fclose(values->fh);
     av_frame_free(&values->frame_prev);
+
+    av_freep(&values->filter_head_border);
+    av_freep(&values->filter_head_order);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -188,6 +192,14 @@ static int config_props(AVFilterLink *outlink)
 
     av_log(ctx, AV_LOG_DEBUG, "<<< config_props().\n");
 
+    if ((values->filters & 1<<FILTER_HEADSWITCHING) ||
+        values->outfilter == FILTER_HEADSWITCHING) {
+        values->filter_head_border = av_malloc(inlink->h * sizeof(*values->filter_head_border));
+        values->filter_head_order  = av_malloc(inlink->h * sizeof(*values->filter_head_order));
+        if (!values->filter_head_border || !values->filter_head_order)
+            return AVERROR(ENOMEM);
+    }
+
     return 0;
 }
 
@@ -197,15 +209,9 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
     int y;
     int tol = 16; // this needs to be configurable.
     int lw = p->linesize[0];
-    unsigned int *order;
+    unsigned int *order = values->filter_head_order;
     int median;
     //int switching =1;
-
-    // should check if this fails
-    values->filter_head_border = (unsigned int*)malloc (h * sizeof(unsigned int));
-
-    order = (unsigned int*)malloc (h * sizeof(unsigned int));
-
 
     for (y=0; y< h; y++)
     {
@@ -283,8 +289,6 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
 
     }
     */
-    free (order);
-
 }
 
 
@@ -295,8 +299,6 @@ static int filter_head(valuesContext *values, const AVFrame *p, int y, int w, in
 
 static void filter_uninit_head(valuesContext *values)
 {
-    free(values->filter_head_border);
-
 }
 
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h)
