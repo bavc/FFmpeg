@@ -42,31 +42,31 @@ enum FilterMode {
 typedef struct
 {
     const AVClass *class;
-    
+
     FILE  *fh;
     char *filename;
-    
+
     int chromah;
     int chromaw;
      int hsub;
      int vsub;
 
     int fc;
-    
+
     int fs;
     int cfs;
-    
+
     enum FilterMode outfilter;
     int filter[FILT_NUMB];
     char *statistics_str;
-    
+
     AVFrame *frame_prev;
-    
+
     int filter_vrep_prev;
-    
+
     char* vrep_line;
     unsigned int * filter_head_border;
-    
+
 } valuesContext;
 
 
@@ -234,34 +234,34 @@ static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
 
 static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h)
 {
-    
+
     int y;
     int tol = 16; // this needs to be configurable.
     int lw = p->linesize[0];
     unsigned int *order;
     int median;
     //int switching =1;
-    
+
     // should check if this fails
     values->filter_head_border = (unsigned int*)malloc (h * sizeof(unsigned int));
 
     order = (unsigned int*)malloc (h * sizeof(unsigned int));
 
-    
+
     for (y=0; y< h; y++)
     {
-        
+
         int yw = y*lw;
         int x;
         // try not to get fooled by non matted video.
         int col = 16;
-        
+
         values->filter_head_border[y] = 0;
 
-        
+
         if (p->data[0][yw] <= 16)
             col = p->data[0][yw];
-        
+
         for (x=0; x< w; x++)
         {
             order[y] = x;
@@ -271,7 +271,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
                 values->filter_head_border[y] = x;
                 break;
             }
-            
+
         }
     }
 
@@ -281,7 +281,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
         int min = order[y];
         int select = y;
         int x;
-        
+
         for (x=y; x<h; x++)
         {
             if (order[x] < min)
@@ -289,7 +289,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
                 min = order[x];
                 select = x;
             }
-            
+
             if (select != y)
             {
                 min = order[y];
@@ -297,35 +297,35 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
                 order[select] = min;
             }
         }
-        
+
     }
-    
+
     // especially if all I want now is the 50th percentile.
     // or 98th depending on what mood the head switching pattern is in.
-    
+
     median = order[98 * h / 100] ;
-    
+
     // remove possible matting
     for (y=0;y<h;y++)
     {
         if (values->filter_head_border[y] < median)
             values->filter_head_border[y] = 0;
     }
-    
+
     /*
     for (y=h-1; y>0; y--)
     {
-        
+
        if (values->filter_head_border[y] <= median )
            switching = 0;
-        
+
         if (!switching)
             values->filter_head_border[y] = 0;
-        
+
     }
     */
     free (order);
-    
+
 }
 
 
@@ -334,15 +334,15 @@ static int filter_head (valuesContext *values, const AVFrame *p, int x, int y, i
 
     if (x < values->filter_head_border[y] )
         return 1;
-    
+
     return 0;
-    
+
 }
 
 static void filter_uninit_head(valuesContext *values)
 {
     free(values->filter_head_border);
-    
+
 }
 
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h)
@@ -384,12 +384,12 @@ static void filter_uninit_tout(valuesContext *values)
 static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
 {
     int lw = p->linesize[0];
-    
+
     if ((x-1 < 0) || (x+1 > w) || (y-1 < 0) || (y+1 >= h)) {
         return 0;
     } else {
         int i;
-        
+
         for (i = -1; i < 2; i++) {
             // detect two pixels above and below (to eliminate interlace artefacts)
             // should check that video format is infact interlace.
@@ -399,7 +399,7 @@ static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, in
                                          p->data[0][(y+2) * lw + i+x]))
                     return 0;
             }
-            
+
             if (!filter_tout_outlier(p->data[0][(y-1) * lw + i+x],
                                      p->data[0][    y * lw + i+x],
                                      p->data[0][(y+1) * lw + i+x]))
@@ -417,14 +417,14 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
     int lw = p->linesize[0];
 
     values->vrep_line = (char *) malloc (h);
-    
+
     for (y=4;y<h;y++)
     {
         int totdiff = 0;
 
         int y2lw = (y-4) * lw;
         int ylw = y * lw;
-        
+
         for (i = 0; i < w; i++)
             totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
 
@@ -434,7 +434,7 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
         }
 
     }
-    
+
 }
 
 static int filter_vrep(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
@@ -516,7 +516,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         }
     }
 
-    
+
     for (j = 0; j < link->h; j++) {
         for (i = 0; i < link->w; i++) {
 
@@ -533,19 +533,19 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
-            
-            
+
+
             //if (in->interlaced_frame && (j % 2 == 0)) // every second line
             if (j % 2 == 0) // every second line
             {
-               
+
                // get bottom field
-               // should check that we are not currently at the bottom line. 
+               // should check that we are not currently at the bottom line.
                 // but who has heard of an interlaced file with odd vertical dimentions?
                 int yuvi = in->data[0][w+in->linesize[0]+i];
 
                 // dif2 = diff bottom field with top field
-                
+
                 dify2 += abs(yuv - yuvi);
 
                 if (in->top_field_first)
@@ -556,7 +556,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                     // dif1 = diff bottom field with prev top field
                     dify1 += abs(yuvi - values->frame_prev->data[0][pw+i]);
                 }
-                
+
             }
 
             if (i < values->chromaw && j < values->chromah) {
@@ -676,7 +676,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
         }
     }
-    
+
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filter[fil] || values->outfilter == fil) {
             filter_uninit[fil](values);
