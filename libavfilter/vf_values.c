@@ -448,11 +448,13 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int dify1 = 0, dify2 = 0;
 
     int filtot[FILT_NUMB] = {0};
+    AVFrame *prev;
 
     av_log(ctx, AV_LOG_DEBUG, ">>> filter_frame().\n");
 
     if (!values->frame_prev)
         values->frame_prev = av_frame_clone(in);
+    prev = values->frame_prev;
 
     if (av_frame_is_writable(in) || values->outfilter == FILTER_NONE) {
         out = in;
@@ -499,7 +501,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             if (!direct)
                 out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
-            dify += abs(in->data[0][w+i] - values->frame_prev->data[0][pw+i]);
+            dify += abs(in->data[0][w+i] - prev->data[0][pw+i]);
 
 
             //if (in->interlaced_frame && (j % 2 == 0)) // every second line
@@ -518,10 +520,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 if (in->top_field_first)
                 {
                     // dif1 = diff top field with prev bottom field
-                    dify1 += abs(yuv - values->frame_prev->data[0][pw+values->frame_prev->linesize[0]+i]);
+                    dify1 += abs(yuv - prev->data[0][pw+prev->linesize[0]+i]);
                 } else {
                     // dif1 = diff bottom field with prev top field
-                    dify1 += abs(yuvi - values->frame_prev->data[0][pw+i]);
+                    dify1 += abs(yuvi - prev->data[0][pw+i]);
                 }
 
             }
@@ -540,8 +542,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 totv += yuv;
                 histv[yuv]++;
 
-                difu += abs(in->data[1][cw+i] - values->frame_prev->data[1][cpw+i]);
-                difv += abs(in->data[2][cw+i] - values->frame_prev->data[2][cpw+i]);
+                difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
+                difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
 
                 if (!direct) {
                     out->data[1][cow+i] = in->data[1][cw+i]; // or 128
@@ -568,8 +570,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         w  += in->linesize[0];
         cw += in->linesize[1];
 
-        pw  += values->frame_prev->linesize[0];
-        cpw += values->frame_prev->linesize[1];
+        pw  += prev->linesize[0];
+        cpw += prev->linesize[1];
     }
 
 
