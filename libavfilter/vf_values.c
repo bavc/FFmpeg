@@ -506,16 +506,16 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             // magic filter array
         }
 
-            for (fil = 0; fil < FILT_NUMB; fil ++) {
-                if (values->filters & 1<<fil) {
-                    int ret = filter_call[fil](values, in, j, link->w, link->h);
-                    if (ret) {
-                        filtot[fil] += ret;
-                        if (values->outfilter == fil)
-                            out->data[0][ow+i] = 235;
-                    }
+        for (fil = 0; fil < FILT_NUMB; fil ++) {
+            if (values->filters & 1<<fil) {
+                int ret = filter_call[fil](values, in, j, link->w, link->h);
+                if (ret) {
+                    filtot[fil] += ret;
+                    if (values->outfilter == fil)
+                        out->data[0][ow+i] = 235;
                 }
             }
+        }
 
         ow  += out->linesize[0];
         cow += out->linesize[1];
