@@ -486,7 +486,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     if (!values->frame_prev)
         values->frame_prev = av_frame_clone(in);
 
-    if (av_frame_is_writable(in)) {
+    if (av_frame_is_writable(in) || values->outfilter == FILTER_NONE) {
         out = in;
         direct = 1;
     } else {
