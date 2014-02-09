@@ -126,6 +126,10 @@ static av_cold int init(AVFilterContext *ctx)
 
     if (values->filename)
         values->fh = fopen(values->filename, "w");
+
+    if (values->outfilter != FILTER_NONE)
+        values->filters |= 1 << values->outfilter;
+
     return 0;
 }
 
@@ -172,16 +176,14 @@ static int config_props(AVFilterLink *outlink)
     values->fs = inlink->w * inlink->h;
     values->cfs = values->chromaw * values->chromah;
 
-    if ((values->filters & 1<<FILTER_HEADSWITCHING) ||
-        values->outfilter == FILTER_HEADSWITCHING) {
+    if (values->filters & 1<<FILTER_HEADSWITCHING) {
         values->filter_head_border = av_malloc(inlink->h * sizeof(*values->filter_head_border));
         values->filter_head_order  = av_malloc(inlink->h * sizeof(*values->filter_head_order));
         if (!values->filter_head_border || !values->filter_head_order)
             return AVERROR(ENOMEM);
     }
 
-    if ((values->filters & 1<<FILTER_VREP) ||
-        values->outfilter == FILTER_VREP) {
+    if (values->filters & 1<<FILTER_VREP) {
         values->vrep_line = av_malloc(inlink->h * sizeof(*values->vrep_line));
         if (!values->vrep_line)
             return AVERROR(ENOMEM);
@@ -433,9 +435,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     maxv = in->data[2][0];
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if ((values->filters & 1<<fil) || values->outfilter == fil) {
+        if (values->filters & 1<<fil)
             filter_init[fil](values, in,link->w,link->h);
-        }
     }
 
     for (j = 0; j < link->h; j++) {
