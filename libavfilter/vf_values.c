@@ -57,8 +57,7 @@ typedef struct
     int cfs;
 
     enum FilterMode outfilter;
-    int filter[FILT_NUMB];
-    char *statistics_str;
+    int filters;
 
     AVFrame *frame_prev;
 
@@ -129,8 +128,11 @@ static const AVOption values_options[] = {
         {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
         {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0, 0, FLAGS, "out"},
         {"head", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_HEADSWITCHING}, 0, 0, FLAGS, "out"},
-
-    {"stat", "set the '|'-separated list of statistics filter", OFFSET(statistics_str), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
+    {"stat", "statistics filters", OFFSET(filters), AV_OPT_TYPE_FLAGS, {.i64=0}, 0, INT_MAX, FLAGS, "filters"},
+        {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_TOUT},          0, 0, FLAGS, "filters"},
+        {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_VREP},          0, 0, FLAGS, "filters"},
+        {"rang", "", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_RANGE},         0, 0, FLAGS, "filters"},
+        {"head", "", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_HEADSWITCHING}, 0, 0, FLAGS, "filters"},
     {NULL}
 };
 
@@ -139,33 +141,6 @@ AVFILTER_DEFINE_CLASS(values);
 static av_cold int init(AVFilterContext *ctx)
 {
     valuesContext *values = ctx->priv;
-
-    // parse statistics filter string
-
-    do {
-        char *next, *cur = values->statistics_str;
-        int fil, ok;
-        while (cur) {
-            next = strchr(cur,'|');
-            if (next)
-                *next++ = 0;
-
-            ok = 0;
-            for (fil = 0; fil < FILT_NUMB; fil++) {
-                if (!strcmp(filter_names[fil], cur)) {
-                    av_log(ctx,AV_LOG_DEBUG, "Found filter: %s\n", filter_names[fil]);
-                    ok = 1;
-                    values->filter[fil] = 1;
-                }
-            }
-            if (!ok) {
-                av_log(ctx, AV_LOG_ERROR, "Error parsing: %s.\n", cur);
-                return AVERROR(EINVAL);
-            }
-            cur = next;
-        }
-    } while (0);
-    //
 
     if (values->filename)
         values->fh = fopen(values->filename, "w");
@@ -510,8 +485,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for(j=0...)\n");
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if (values->filter[fil] || values->outfilter == fil) {
-            values->filter[fil]=1;
+        if ((values->filters & 1<<fil) || values->outfilter == fil) {
             filter_init[fil](values, in,link->w,link->h);
         }
     }
@@ -585,7 +559,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             // magic filter array
 
             for (fil = 0; fil < FILT_NUMB; fil ++) {
-                if (values->filter[fil] ) {
+                if (values->filters & 1<<fil) {
                     if (filter_call[fil](values,in,i,j,link->w,link->h)) {
                         filtot[fil] ++;
                         if (values->outfilter == fil)
@@ -666,7 +640,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     av_log(ctx, AV_LOG_DEBUG, "    filter_frame() for (fil = 0; fil < FILT_NUMB; fil ++).\n");
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if (values->filter[fil]) {
+        if (values->filters & 1<<fil) {
        //     SET_META(filter_metanames[fil],"%g",1.0 * filtot[fil]/values->fs);
 
             char metaname[128];
@@ -678,7 +652,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     }
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if (values->filter[fil] || values->outfilter == fil) {
+        if ((values->filters & 1<<fil) || values->outfilter == fil) {
             filter_uninit[fil](values);
         }
     }
