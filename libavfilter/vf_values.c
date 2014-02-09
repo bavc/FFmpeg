@@ -71,10 +71,10 @@ typedef struct
 
 /* Prototypes for filter functions */
 
-static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
-static int filter_vrep(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
-static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
-static int filter_head(valuesContext *values, const AVFrame *p, int x, int y, int w, int h);
+static int filter_tout(valuesContext *values, const AVFrame *p, int y, int w, int h);
+static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, int h);
+static int filter_range(valuesContext *values, const AVFrame *p,int y, int w, int h);
+static int filter_head(valuesContext *values, const AVFrame *p, int y, int w, int h);
 
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h);
@@ -89,7 +89,7 @@ static void filter_uninit_head(valuesContext *values);
 
 
 
-static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *p, int x, int y, int w, int h) = {
+static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *p, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_range,
@@ -292,14 +292,9 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
 }
 
 
-static int filter_head (valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
+static int filter_head(valuesContext *values, const AVFrame *p, int y, int w, int h)
 {
-
-    if (x < values->filter_head_border[y] )
-        return 1;
-
-    return 0;
-
+    return values->filter_head_border[y];
 }
 
 static void filter_uninit_head(valuesContext *values)
@@ -319,19 +314,25 @@ static void filter_uninit_range(valuesContext *values)
 }
 
 
-static int filter_range(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
+static int filter_range(valuesContext *values, const AVFrame *p, int y, int w, int h)
 {
     int lw = p->linesize[0];
-    int luma = p->data[0][y * lw + x];
-
     int cw = p->linesize[1]; // assume linesize[1] == linesize[2]
-    int cy = FF_CEIL_RSHIFT(y, values->vsub);
-    int cx = FF_CEIL_RSHIFT(x, values->hsub);
-    int chromau = p->data[1][cy*cw+cx];
-    int chromav = p->data[2][cy*cw+cx];
 
-    //  also check chroma
-    return (luma<16 || luma>235 || chromau < 16 || chromau>240 || chromav < 16 || chromav > 240)?1:0;
+    int x, score = 0;
+
+    for (x = 0; x < w; x++) {
+        int luma = p->data[0][y * lw + x];
+        int cy = FF_CEIL_RSHIFT(y, values->vsub);
+        int cx = FF_CEIL_RSHIFT(x, values->hsub);
+        int chromau = p->data[1][cy*cw+cx];
+        int chromav = p->data[2][cy*cw+cx];
+
+        score += luma    < 16 || luma    > 235 ||
+                 chromau < 16 || chromau > 240 ||
+                 chromav < 16 || chromav > 240;
+    }
+    return score;
 }
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h)
@@ -349,34 +350,34 @@ static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     return ((abs(x - y) + abs (z - y)) / 2) - abs(z - x) > 4; // make 4 configurable?
 }
 
-static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
+static int filter_tout(valuesContext *values, const AVFrame *f, int y, int w, int h)
 {
-    int lw = p->linesize[0];
+    const uint8_t *p = f->data[0];
+    int lw = f->linesize[0];
+    int x, score = 0;
 
-    if ((x-1 < 0) || (x+1 > w) || (y-1 < 0) || (y+1 >= h)) {
+    if (y - 1 < 0 || y + 1 >= h)
         return 0;
-    } else {
-        int i;
 
-        for (i = -1; i < 2; i++) {
+    for (x = 1; x < w - 1; x++) {
+
             // detect two pixels above and below (to eliminate interlace artefacts)
             // should check that video format is infact interlace.
-            if ((y-2 >=0) && (y+2 < h)) {
-                if (!filter_tout_outlier(p->data[0][(y-2) * lw + i+x],
-                                         p->data[0][    y * lw + i+x],
-                                         p->data[0][(y+2) * lw + i+x]))
-                    return 0;
-            }
 
-            if (!filter_tout_outlier(p->data[0][(y-1) * lw + i+x],
-                                     p->data[0][    y * lw + i+x],
-                                     p->data[0][(y+1) * lw + i+x]))
-                return 0;
-        }
+#define FILTER(i, j) \
+filter_tout_outlier(p[(y-j) * lw + x + i], \
+                    p[    y * lw + x + i], \
+                    p[(y+j) * lw + x + i])
+
+#define FILTER3(j) (FILTER(-1, j) && FILTER(0, j) && FILTER(1, j))
+
+        if (y-2 >= 0 && y+2 < h)
+            score += FILTER3(2) && FILTER3(1);
+        else
+            score += FILTER3(1);
     }
-    return 1;
+    return score;
 }
-
 
 static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h)
 {
@@ -405,9 +406,13 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
 
 }
 
-static int filter_vrep(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
+static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, int h)
 {
-    return values->vrep_line[y];
+    int x, score = 0;
+
+    for (x = 0; x < w; x++)
+        score += values->vrep_line[y];
+    return score;
 }
 
 static void filter_uninit_vrep(valuesContext *values)
@@ -552,17 +557,18 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             }
 
             // magic filter array
+        }
 
             for (fil = 0; fil < FILT_NUMB; fil ++) {
                 if (values->filters & 1<<fil) {
-                    if (filter_call[fil](values,in,i,j,link->w,link->h)) {
-                        filtot[fil] ++;
+                    int ret = filter_call[fil](values, in, j, link->w, link->h);
+                    if (ret) {
+                        filtot[fil] += ret;
                         if (values->outfilter == fil)
                             out->data[0][ow+i] = 235;
                     }
                 }
             }
-        }
 
         ow  += out->linesize[0];
         cow += out->linesize[1];
