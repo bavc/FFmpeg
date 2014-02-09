@@ -79,13 +79,6 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h);
 static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h);
 
-static void filter_uninit_tout(valuesContext *values);
-static void filter_uninit_vrep(valuesContext *values);
-static void filter_uninit_range(valuesContext *values);
-static void filter_uninit_head(valuesContext *values);
-
-
-
 static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *p, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
@@ -99,14 +92,6 @@ static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  
     filter_init_range,
     filter_init_head
 };
-
-static void (*filter_uninit[FILT_NUMB])(valuesContext *values) = {
-    filter_uninit_tout,
-    filter_uninit_vrep,
-    filter_uninit_range,
-    filter_uninit_head
-};
-
 
 static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
 static const char *const filter_names[]     = { "tout", "vrep", "rang", "head", NULL };
@@ -306,20 +291,9 @@ static int filter_head(valuesContext *values, const AVFrame *p, int y, int w, in
     return values->filter_head_border[y];
 }
 
-static void filter_uninit_head(valuesContext *values)
-{
-}
-
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h)
 {
-    ;
 }
-
-static void filter_uninit_range(valuesContext *values)
-{
-    ;
-}
-
 
 static int filter_range(valuesContext *values, const AVFrame *p, int y, int w, int h)
 {
@@ -343,12 +317,6 @@ static int filter_range(valuesContext *values, const AVFrame *p, int y, int w, i
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h)
 {
-    ;
-}
-
-static void filter_uninit_tout(valuesContext *values)
-{
-    ;
 }
 
 static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
@@ -415,13 +383,6 @@ static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, in
         score += values->vrep_line[y];
     return score;
 }
-
-static void filter_uninit_vrep(valuesContext *values)
-{
-}
-
-
-
 
 #define DEPTH 256
 
@@ -649,12 +610,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             snprintf(metaname,sizeof(metaname),"lavfi.values.%s",filter_metanames[fil]);
             av_dict_set(&out->metadata,metaname,metabuf,0);
 
-        }
-    }
-
-    for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if ((values->filters & 1<<fil) || values->outfilter == fil) {
-            filter_uninit[fil](values);
         }
     }
 
