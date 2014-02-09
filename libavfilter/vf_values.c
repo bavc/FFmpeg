@@ -51,8 +51,6 @@ typedef struct
      int hsub;
      int vsub;
 
-    int fc;
-
     int fs;
     int cfs;
 
@@ -60,8 +58,6 @@ typedef struct
     int filters;
 
     AVFrame *frame_prev;
-
-    int filter_vrep_prev;
 
     char* vrep_line;
     unsigned int * filter_head_border;
@@ -657,7 +653,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         }
     }
 
-    values->fc++;
     if (!direct)
         av_frame_free(&in);
     av_log(ctx, AV_LOG_DEBUG, "<<< filter_frame().\n");
