@@ -195,18 +195,6 @@ static int config_props(AVFilterLink *outlink)
     return 0;
 }
 
-static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
-{
-    int dif;
-
-    dif = ((abs(x - y) + abs (z - y)) / 2) - abs(z - x);
-
-    //fprintf(stderr,"dif: %d %d\n",dif2,dif1);
-
-    // Will make this configurable by command line option.
-    return dif>4?1:0;
-}
-
 static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h)
 {
 
@@ -354,6 +342,11 @@ static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int
 static void filter_uninit_tout(valuesContext *values)
 {
     ;
+}
+
+static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
+{
+    return ((abs(x - y) + abs (z - y)) / 2) - abs(z - x) > 4; // make 4 configurable?
 }
 
 static int filter_tout(valuesContext *values, const AVFrame *p, int x, int y, int w, int h)
