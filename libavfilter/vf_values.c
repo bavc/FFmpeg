@@ -240,7 +240,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
     int lw = p->linesize[0];
     unsigned int *order;
     int median;
-    int switching =1;
+    //int switching =1;
     
     // should check if this fails
     values->filter_head_border = (unsigned int*)malloc (h * sizeof(unsigned int));
