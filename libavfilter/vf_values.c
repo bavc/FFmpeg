@@ -420,6 +420,11 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
 
     values->vrep_line = (char *) malloc (h);
     
+    // probably could do a memset.
+    for (y=0; y<h; y++)
+        values->vrep_line[y] = 0;
+
+    
     for (y=4;y<h;y++)
     {
         int totdiff = 0;
