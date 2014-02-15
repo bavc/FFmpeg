@@ -489,8 +489,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
                 difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
             }
-
-            // magic filter array
         }
 
         for (fil = 0; fil < FILT_NUMB; fil ++) {
