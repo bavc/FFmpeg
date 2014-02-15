@@ -451,7 +451,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         for (i = 0; i < link->w; i++) {
 
             yuv = in->data[0][w+i];
-            toty += yuv;
             histy[yuv]++;
 
             dify += abs(in->data[0][w+i] - prev->data[0][pw+i]);
@@ -482,11 +481,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             if (i < values->chromaw && j < values->chromah) {
 
                 yuv = in->data[1][cw+i];
-                totu += yuv;
                 histu[yuv]++;
 
                 yuv = in->data[2][cw+i];
-                totv += yuv;
                 histv[yuv]++;
 
                 difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
@@ -528,6 +525,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (histy[fil]) maxy = fil;
         if (histu[fil]) maxu = fil;
         if (histv[fil]) maxv = fil;
+
+        toty += histy[fil] * fil;
+        totu += histu[fil] * fil;
+        totv += histv[fil] * fil;
 
         accy += histy[fil];
         accu += histu[fil];
