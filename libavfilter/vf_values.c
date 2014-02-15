@@ -342,7 +342,6 @@ static int filter_tout(valuesContext *values, const AVFrame *f, AVFrame *out, in
     if (y - 1 < 0 || y + 1 >= h)
         return 0;
 
-    for (x = 1; x < w - 1; x++) {
 
             // detect two pixels above and below (to eliminate interlace artefacts)
             // should check that video format is infact interlace.
@@ -354,13 +353,20 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
 
 #define FILTER3(j) (FILTER(-1, j) && FILTER(0, j) && FILTER(1, j))
 
-        if (y-2 >= 0 && y+2 < h)
+    if (y-2 >= 0 && y+2 < h) {
+        for (x = 1; x < w - 1; x++) {
             filt = FILTER3(2) && FILTER3(1);
-        else
+            score += filt;
+            if (filt && out)
+                burn_frame(out, x, y);
+        }
+    } else {
+        for (x = 1; x < w - 1; x++) {
             filt = FILTER3(1);
-        score += filt;
-        if (filt && out)
-            burn_frame(out, x, y);
+            score += filt;
+            if (filt && out)
+                burn_frame(out, x, y);
+        }
     }
     return score;
 }
