@@ -68,10 +68,10 @@ typedef struct
 
 /* Prototypes for filter functions */
 
-static int filter_tout(valuesContext *values, const AVFrame *p, int y, int w, int h);
-static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, int h);
-static int filter_range(valuesContext *values, const AVFrame *p,int y, int w, int h);
-static int filter_head(valuesContext *values, const AVFrame *p, int y, int w, int h);
+static int filter_tout (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
+static int filter_vrep (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
+static int filter_range(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
+static int filter_head (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
 
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h);
@@ -79,7 +79,7 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h);
 static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h);
 
-static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *p, int y, int w, int h) = {
+static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_range,
@@ -192,6 +192,11 @@ static int config_props(AVFilterLink *outlink)
     return 0;
 }
 
+static void burn_frame(AVFrame *f, int x, int y)
+{
+    f->data[0][y * f->linesize[0] + x] = 235;
+}
+
 static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h)
 {
 
@@ -281,16 +286,22 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
 }
 
 
-static int filter_head(valuesContext *values, const AVFrame *p, int y, int w, int h)
+static int filter_head(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
 {
-    return values->filter_head_border[y];
+    const int filt = values->filter_head_border[y];
+    if (out && filt) {
+        int x;
+        for (x = 0; x < w; x++)
+            burn_frame(out, x, y);
+    }
+    return filt;
 }
 
 static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h)
 {
 }
 
-static int filter_range(valuesContext *values, const AVFrame *p, int y, int w, int h)
+static int filter_range(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
     const int yc = FF_CEIL_RSHIFT(y, values->vsub);
@@ -303,9 +314,12 @@ static int filter_range(valuesContext *values, const AVFrame *p, int y, int w, i
         const int luma    = pluma[x];
         const int chromau = pchromau[xc];
         const int chromav = pchromav[xc];
-        score += luma    < 16 || luma    > 235 ||
-                 chromau < 16 || chromau > 240 ||
-                 chromav < 16 || chromav > 240;
+        const int filt = luma    < 16 || luma    > 235 ||
+                         chromau < 16 || chromau > 240 ||
+                         chromav < 16 || chromav > 240;
+        score += filt;
+        if (out && filt)
+            burn_frame(out, x, y);
     }
     return score;
 }
@@ -319,11 +333,11 @@ static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     return ((abs(x - y) + abs (z - y)) / 2) - abs(z - x) > 4; // make 4 configurable?
 }
 
-static int filter_tout(valuesContext *values, const AVFrame *f, int y, int w, int h)
+static int filter_tout(valuesContext *values, const AVFrame *f, AVFrame *out, int y, int w, int h)
 {
     const uint8_t *p = f->data[0];
     int lw = f->linesize[0];
-    int x, score = 0;
+    int x, score = 0, filt;
 
     if (y - 1 < 0 || y + 1 >= h)
         return 0;
@@ -341,9 +355,12 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
 #define FILTER3(j) (FILTER(-1, j) && FILTER(0, j) && FILTER(1, j))
 
         if (y-2 >= 0 && y+2 < h)
-            score += FILTER3(2) && FILTER3(1);
+            filt = FILTER3(2) && FILTER3(1);
         else
-            score += FILTER3(1);
+            filt = FILTER3(1);
+        score += filt;
+        if (filt && out)
+            burn_frame(out, x, y);
     }
     return score;
 }
@@ -370,12 +387,17 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
 
 }
 
-static int filter_vrep(valuesContext *values, const AVFrame *p, int y, int w, int h)
+static int filter_vrep(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
 
-    for (x = 0; x < w; x++)
-        score += values->vrep_line[y];
+    for (x = 0; x < w; x++) {
+        if (values->vrep_line[y]) {
+            score++;
+            if (out)
+                burn_frame(out, x, y);
+        }
+    }
     return score;
 }
 
@@ -385,10 +407,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 {
     valuesContext *values = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
-    AVFrame *out;
-    int i, j, direct = 0;
+    AVFrame *out = in;
+    int i, j;
     int  w = 0,  cw = 0, // in
-        ow = 0, cow = 0, // out
         pw = 0, cpw = 0; // prev
     int yuv;
     int fil;
@@ -413,17 +434,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         values->frame_prev = av_frame_clone(in);
     prev = values->frame_prev;
 
-    if (av_frame_is_writable(in) || values->outfilter == FILTER_NONE) {
-        out = in;
-        direct = 1;
-    } else {
-        out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
-        if (!out) {
-            av_frame_free(&in);
-            return AVERROR(ENOMEM);
-        }
-        av_frame_copy_props(out, in);
-    }
+    if (values->outfilter != FILTER_NONE)
+        out = av_frame_clone(in);
 
     miny = in->data[0][0];
     maxy = in->data[0][0];
@@ -450,9 +462,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             toty += yuv;
 
             histy[yuv]++;
-
-            if (!direct)
-                out->data[0][ow+i] = in->data[0][w+i]; // or 16;
 
             dify += abs(in->data[0][w+i] - prev->data[0][pw+i]);
 
@@ -496,11 +505,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
                 difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
                 difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
-
-                if (!direct) {
-                    out->data[1][cow+i] = in->data[1][cw+i]; // or 128
-                    out->data[2][cow+i] = in->data[2][cw+i]; // or 128
-                }
             }
 
             // magic filter array
@@ -508,17 +512,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
         for (fil = 0; fil < FILT_NUMB; fil ++) {
             if (values->filters & 1<<fil) {
-                int ret = filter_call[fil](values, in, j, link->w, link->h);
-                if (ret) {
-                    filtot[fil] += ret;
-                    if (values->outfilter == fil)
-                        out->data[0][ow+i] = 235;
-                }
+                AVFrame *dbg = out != in && values->outfilter == fil ? out : NULL;
+                filtot[fil] += filter_call[fil](values, in, dbg, j, link->w, link->h);
             }
         }
-
-        ow  += out->linesize[0];
-        cow += out->linesize[1];
 
         w  += in->linesize[0];
         cw += in->linesize[1];
@@ -592,7 +589,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         }
     }
 
-    if (!direct)
+    if (in != out)
         av_frame_free(&in);
     return ff_filter_frame(outlink, out);
 }
