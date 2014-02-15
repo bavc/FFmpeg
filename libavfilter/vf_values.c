@@ -365,17 +365,19 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
     return score;
 }
 
+#define VREP_START 4
+
 static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h)
 {
 
     int i,y;
     int lw = p->linesize[0];
 
-    for (y=4;y<h;y++)
+    for (y = VREP_START; y < h; y++)
     {
         int totdiff = 0;
 
-        int y2lw = (y-4) * lw;
+        int y2lw = (y-VREP_START) * lw;
         int ylw = y * lw;
 
         for (i = 0; i < w; i++)
@@ -390,6 +392,9 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
 static int filter_vrep(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
+
+    if (y < VREP_START)
+        return 0;
 
     for (x = 0; x < w; x++) {
         if (values->vrep_line[y]) {
