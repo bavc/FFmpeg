@@ -422,8 +422,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     unsigned int histy[DEPTH] = {0},
                  histu[DEPTH] = {0},
                  histv[DEPTH] = {0}; // limited to 8 bit data.
-    int miny, minu, minv;
-    int maxy, maxu, maxv;
+    int miny = -1, minu = -1, minv = -1;
+    int maxy = -1, maxu = -1, maxv = -1;
     int lowy  = -1, lowu  = -1, lowv  = -1;
     int highy = -1, highu = -1, highv = -1;
     int lowp, highp, clowp, chighp;
@@ -442,15 +442,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     if (values->outfilter != FILTER_NONE)
         out = av_frame_clone(in);
 
-    miny = in->data[0][0];
-    maxy = in->data[0][0];
-
-    minu = in->data[1][0];
-    maxu = in->data[1][0];
-
-    minv = in->data[2][0];
-    maxv = in->data[2][0];
-
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filters & 1<<fil)
             filter_init[fil](values, in,link->w,link->h);
@@ -460,16 +451,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         for (i = 0; i < link->w; i++) {
 
             yuv = in->data[0][w+i];
-
-            if (yuv > maxy) maxy=yuv;
-            if (yuv < miny) miny=yuv;
-
             toty += yuv;
-
             histy[yuv]++;
 
             dify += abs(in->data[0][w+i] - prev->data[0][pw+i]);
-
 
             //if (in->interlaced_frame && (j % 2 == 0)) // every second line
             if (!(j & 1)) { // every second line
@@ -497,14 +482,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             if (i < values->chromaw && j < values->chromah) {
 
                 yuv = in->data[1][cw+i];
-                if (yuv > maxu) maxu=yuv;
-                if (yuv < minu) minu=yuv;
                 totu += yuv;
                 histu[yuv]++;
 
                 yuv = in->data[2][cw+i];
-                if (yuv > maxv) maxv=yuv;
-                if (yuv < minv) minv=yuv;
                 totv += yuv;
                 histv[yuv]++;
 
@@ -540,6 +521,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     accy = 0; accu=0; accv=0;
     for (fil = 0; fil < DEPTH; fil++) {
+        if (miny < 0 && histy[fil]) miny = fil;
+        if (minu < 0 && histu[fil]) minu = fil;
+        if (minv < 0 && histv[fil]) minv = fil;
+
+        if (histy[fil]) maxy = fil;
+        if (histu[fil]) maxu = fil;
+        if (histv[fil]) maxv = fil;
+
         accy += histy[fil];
         accu += histu[fil];
         accv += histv[fil];
