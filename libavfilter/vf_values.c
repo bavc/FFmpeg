@@ -477,34 +477,32 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 }
 
             }
-
-            if (i < values->chromaw && j < values->chromah) {
-
-                yuv = in->data[1][cw+i];
-                histu[yuv]++;
-
-                yuv = in->data[2][cw+i];
-                histv[yuv]++;
-
-                difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
-                difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
-            }
         }
+        w  += in->linesize[0];
+        pw  += prev->linesize[0];
+    }
 
+    for (j = 0; j < values->chromah; j++) {
+        for (i = 0; i < values->chromaw; i++) {
+            histu[in->data[1][cw+i]]++;
+            difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
+        }
+        for (i = 0; i < values->chromaw; i++) {
+            histv[in->data[2][cw+i]]++;
+            difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
+        }
+        cw += in->linesize[1];
+        cpw += prev->linesize[1];
+    }
+
+    for (j = 0; j < link->h; j++) {
         for (fil = 0; fil < FILT_NUMB; fil ++) {
             if (values->filters & 1<<fil) {
                 AVFrame *dbg = out != in && values->outfilter == fil ? out : NULL;
                 filtot[fil] += filter_call[fil](values, in, dbg, j, link->w, link->h);
             }
         }
-
-        w  += in->linesize[0];
-        cw += in->linesize[1];
-
-        pw  += prev->linesize[0];
-        cpw += prev->linesize[1];
     }
-
 
     // find low / high based on histogram percentile
     // these only need to be calculated once.
