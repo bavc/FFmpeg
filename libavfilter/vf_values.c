@@ -50,8 +50,6 @@ typedef struct {
     unsigned int *filter_head_order;
 } valuesContext;
 
-static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
-
 #define OFFSET(x) offsetof(valuesContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 
@@ -340,18 +338,20 @@ static int filter_vrep(valuesContext *values, const AVFrame *in, AVFrame *out, i
     return score;
 }
 
+static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
+
 static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_range,
-    filter_head
+    filter_head,
 };
 
 static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  int w, int h) = {
     filter_init_tout,
     filter_init_vrep,
     filter_init_range,
-    filter_init_head
+    filter_init_head,
 };
 
 #define DEPTH 256
