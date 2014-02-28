@@ -135,7 +135,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX(H263,             h263);
     REGISTER_MUXDEMUX(H264,             h264);
     REGISTER_MUXER   (HDS,              hds);
-    REGISTER_DEMUXER (HEVC,             hevc);
+    REGISTER_MUXDEMUX(HEVC,             hevc);
     REGISTER_MUXDEMUX(HLS,              hls);
     REGISTER_DEMUXER (HNM,              hnm);
     REGISTER_MUXDEMUX(ICO,              ico);
@@ -249,6 +249,7 @@ void av_register_all(void)
     REGISTER_MUXDEMUX(SAP,              sap);
     REGISTER_DEMUXER (SBG,              sbg);
     REGISTER_DEMUXER (SDP,              sdp);
+    REGISTER_DEMUXER (SDR2,             sdr2);
 #if CONFIG_RTPDEC
     ff_register_rtp_dynamic_payload_handlers();
     ff_register_rdt_dynamic_payload_handlers();
@@ -284,6 +285,7 @@ void av_register_all(void)
     REGISTER_DEMUXER (TTA,              tta);
     REGISTER_DEMUXER (TXD,              txd);
     REGISTER_DEMUXER (TTY,              tty);
+    REGISTER_MUXER   (UNCODEDFRAMECRC,  uncodedframecrc);
     REGISTER_MUXDEMUX(VC1,              vc1);
     REGISTER_MUXDEMUX(VC1T,             vc1t);
     REGISTER_DEMUXER (VIVO,             vivo);

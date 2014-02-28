@@ -1536,6 +1536,10 @@ static int mov_finalize_stsd_codec(MOVContext *c, AVIOContext *pb,
         // force sample rate for qcelp when not stored in mov
         if (st->codec->codec_tag != MKTAG('Q','c','l','p'))
             st->codec->sample_rate = 8000;
+        // FIXME: Why is the following needed for some files?
+        sc->samples_per_frame = 160;
+        if (!sc->bytes_per_frame)
+            sc->bytes_per_frame = 35;
         break;
     case AV_CODEC_ID_AMR_NB:
         st->codec->channels    = 1;
@@ -1568,11 +1572,7 @@ static int mov_finalize_stsd_codec(MOVContext *c, AVIOContext *pb,
         }
         break;
     case AV_CODEC_ID_AC3:
-        st->need_parsing = AVSTREAM_PARSE_FULL;
-        break;
     case AV_CODEC_ID_MPEG1VIDEO:
-        st->need_parsing = AVSTREAM_PARSE_FULL;
-        break;
     case AV_CODEC_ID_VC1:
         st->need_parsing = AVSTREAM_PARSE_FULL;
         break;
@@ -1927,7 +1927,8 @@ static int mov_read_stts(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 
         /* sample_duration < 0 is invalid based on the spec */
         if (sample_duration < 0) {
-            av_log(c->fc, AV_LOG_ERROR, "Invalid SampleDelta in STTS %d\n", sample_duration);
+            av_log(c->fc, AV_LOG_ERROR, "Invalid SampleDelta %d in STTS, at %d st:%d\n",
+                   sample_duration, i, c->fc->nb_streams-1);
             sample_duration = 1;
         }
         if (sample_count < 0) {
@@ -2162,6 +2163,11 @@ static void mov_build_index(MOVContext *mov, AVStream *st)
                         rap_group_index++;
                     }
                 }
+                if (sc->keyframe_absent
+                    && !sc->stps_count
+                    && !rap_group_present
+                    && st->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+                     keyframe = 1;
                 if (keyframe)
                     distance = 0;
                 sample_size = sc->stsz_sample_size > 0 ? sc->stsz_sample_size : sc->sample_sizes[current_sample];
@@ -3414,7 +3420,7 @@ static int mov_read_header(AVFormatContext *s)
         }
         if (st->codec->codec_type == AVMEDIA_TYPE_VIDEO && sc->nb_frames_for_fps > 0 && sc->duration_for_fps > 0)
             av_reduce(&st->avg_frame_rate.num, &st->avg_frame_rate.den,
-                      sc->time_scale*sc->nb_frames_for_fps, sc->duration_for_fps, INT_MAX);
+                      sc->time_scale*(int64_t)sc->nb_frames_for_fps, sc->duration_for_fps, INT_MAX);
     }
 
     if (mov->trex_data) {

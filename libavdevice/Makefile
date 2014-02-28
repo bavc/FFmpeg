@@ -17,6 +17,7 @@ OBJS-$(CONFIG_ALSA_OUTDEV)               += alsa-audio-common.o \
                                             alsa-audio-enc.o
 OBJS-$(CONFIG_BKTR_INDEV)                += bktr.o
 OBJS-$(CONFIG_CACA_OUTDEV)               += caca.o
+OBJS-$(CONFIG_DECKLINK_OUTDEV)           += decklink_enc.o decklink_enc_c.o
 OBJS-$(CONFIG_DSHOW_INDEV)               += dshow.o dshow_enummediatypes.o \
                                             dshow_enumpins.o dshow_filter.o \
                                             dshow_pin.o dshow_common.o
@@ -55,6 +56,7 @@ OBJS-$(HAVE_LIBC_MSVCRT)                 += file_open.o
 # Windows resource file
 SLIBOBJS-$(HAVE_GNU_WINDRES)             += avdeviceres.o
 
+SKIPHEADERS-$(CONFIG_DECKLINK)           += decklink_enc.h
 SKIPHEADERS-$(CONFIG_DSHOW_INDEV)        += dshow_capture.h
 SKIPHEADERS-$(CONFIG_LIBPULSE)           += pulse_audio_common.h
 SKIPHEADERS-$(CONFIG_V4L2_INDEV)         += v4l2-common.h

@@ -309,16 +309,10 @@ OBJS-$(CONFIG_MPEG2VIDEO_DECODER)      += mpeg12dec.o mpeg12.o mpeg12data.o
 OBJS-$(CONFIG_MPEG2VIDEO_ENCODER)      += mpeg12enc.o mpeg12.o
 OBJS-$(CONFIG_MPL2_DECODER)            += mpl2dec.o ass.o
 OBJS-$(CONFIG_MSMPEG4V1_DECODER)       += msmpeg4dec.o msmpeg4.o msmpeg4data.o
-OBJS-$(CONFIG_MSMPEG4V2_DECODER)       += msmpeg4dec.o msmpeg4.o msmpeg4data.o \
-                                          h263dec.o h263.o ituh263dec.o \
-                                          mpeg4videodec.o
-OBJS-$(CONFIG_MSMPEG4V2_ENCODER)       += msmpeg4.o msmpeg4enc.o msmpeg4data.o \
-                                          h263.o
-OBJS-$(CONFIG_MSMPEG4V3_DECODER)       += msmpeg4dec.o msmpeg4.o msmpeg4data.o \
-                                          h263dec.o h263.o ituh263dec.o \
-                                          mpeg4videodec.o
-OBJS-$(CONFIG_MSMPEG4V3_ENCODER)       += msmpeg4.o msmpeg4enc.o msmpeg4data.o \
-                                          h263.o
+OBJS-$(CONFIG_MSMPEG4V2_DECODER)       += msmpeg4dec.o msmpeg4.o msmpeg4data.o
+OBJS-$(CONFIG_MSMPEG4V2_ENCODER)       += msmpeg4enc.o msmpeg4.o msmpeg4data.o
+OBJS-$(CONFIG_MSMPEG4V3_DECODER)       += msmpeg4dec.o msmpeg4.o msmpeg4data.o
+OBJS-$(CONFIG_MSMPEG4V3_ENCODER)       += msmpeg4enc.o msmpeg4.o msmpeg4data.o
 OBJS-$(CONFIG_MSRLE_DECODER)           += msrle.o msrledec.o
 OBJS-$(CONFIG_MSA1_DECODER)            += mss3.o mss34dsp.o
 OBJS-$(CONFIG_MSS1_DECODER)            += mss1.o mss12.o
@@ -356,7 +350,7 @@ OBJS-$(CONFIG_PRORES_DECODER)          += proresdec2.o proresdsp.o proresdata.o
 OBJS-$(CONFIG_PRORES_LGPL_DECODER)     += proresdec_lgpl.o proresdsp.o proresdata.o
 OBJS-$(CONFIG_PRORES_ENCODER)          += proresenc_anatoliy.o
 OBJS-$(CONFIG_PRORES_AW_ENCODER)       += proresenc_anatoliy.o
-OBJS-$(CONFIG_PRORES_KS_ENCODER)       += proresenc_kostya.o proresdata.o proresdsp.o
+OBJS-$(CONFIG_PRORES_KS_ENCODER)       += proresenc_kostya.o proresdata.o
 OBJS-$(CONFIG_PTX_DECODER)             += ptx.o
 OBJS-$(CONFIG_QCELP_DECODER)           += qcelpdec.o                     \
                                           celp_filters.o acelp_vectors.o \
@@ -445,7 +439,7 @@ OBJS-$(CONFIG_TRUEMOTION2_DECODER)     += truemotion2.o
 OBJS-$(CONFIG_TRUESPEECH_DECODER)      += truespeech.o
 OBJS-$(CONFIG_TSCC_DECODER)            += tscc.o msrledec.o
 OBJS-$(CONFIG_TSCC2_DECODER)           += tscc2.o
-OBJS-$(CONFIG_TTA_DECODER)             += tta.o ttadata.o
+OBJS-$(CONFIG_TTA_DECODER)             += tta.o ttadata.o ttadsp.o
 OBJS-$(CONFIG_TTA_ENCODER)             += ttaenc.o ttadata.o
 OBJS-$(CONFIG_TWINVQ_DECODER)          += twinvqdec.o twinvq.o
 OBJS-$(CONFIG_TXD_DECODER)             += txd.o s3tc.o
@@ -742,6 +736,7 @@ OBJS-$(CONFIG_LIBVPX_VP9_ENCODER)         += libvpxenc.o libvpx.o
 OBJS-$(CONFIG_LIBWAVPACK_ENCODER)         += libwavpackenc.o
 OBJS-$(CONFIG_LIBWEBP_ENCODER)            += libwebpenc.o
 OBJS-$(CONFIG_LIBX264_ENCODER)            += libx264.o
+OBJS-$(CONFIG_LIBX265_ENCODER)            += libx265.o
 OBJS-$(CONFIG_LIBXAVS_ENCODER)            += libxavs.o
 OBJS-$(CONFIG_LIBXVID_ENCODER)            += libxvid.o
 OBJS-$(CONFIG_LIBZVBI_TELETEXT_DECODER)   += libzvbi-teletextdec.o

@@ -24,9 +24,9 @@
  * @file
  * libavformat API example.
  *
- * Output a media file in any supported libavformat format.
- * The default codecs are used.
- * @example doc/examples/muxing.c
+ * Output a media file in any supported libavformat format. The default
+ * codecs are used.
+ * @example muxing.c
  */
 
 #include <stdlib.h>

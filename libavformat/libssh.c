@@ -19,6 +19,7 @@
  */
 
 #include <fcntl.h>
+#define LIBSSH_STATIC
 #include <libssh/sftp.h>
 #include "libavutil/avstring.h"
 #include "libavutil/opt.h"
@@ -239,6 +240,11 @@ static int64_t libssh_seek(URLContext *h, int64_t pos, int whence)
         newpos = libssh->filesize + pos;
         break;
     default:
+        return AVERROR(EINVAL);
+    }
+
+    if (newpos < 0) {
+        av_log(h, AV_LOG_ERROR, "Seeking to nagative position.\n");
         return AVERROR(EINVAL);
     }
 
