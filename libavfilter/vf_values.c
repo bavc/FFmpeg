@@ -75,7 +75,6 @@ static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  
 };
 
 static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
-static const char *const filter_names[]     = { "tout", "vrep", "rang", "head", NULL };
 
 #define OFFSET(x) offsetof(valuesContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
