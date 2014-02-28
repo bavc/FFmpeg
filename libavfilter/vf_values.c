@@ -1,8 +1,6 @@
 /*
- ** <h3>values graph</h3>
- * copyright (c) 2010 Mark Heath mjpeg0 @ silicontrip dot org
- * http://silicontrip.net/~mark/lavtools/
- *
+ * Copyright (c) 2010 Mark Heath mjpeg0 @ silicontrip dot org
+ * Copyright (c) 2014 Clément Bœsch
  *
  * This file is part of FFmpeg.
  *
