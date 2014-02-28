@@ -19,13 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include <stdio.h>
-
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "internal.h"
-
-// dB = 10 * log10 (r1/r2)
 
 enum FilterMode {
     FILTER_NONE = -1,
@@ -36,41 +32,28 @@ enum FilterMode {
     FILT_NUMB
 };
 
-
-typedef struct
-{
+typedef struct {
     const AVClass *class;
-
-    FILE  *fh;
+    FILE *fh;
     char *filename;
-
     int chromah;
     int chromaw;
-     int hsub;
-     int vsub;
-
+    int hsub;
+    int vsub;
     int fs;
     int cfs;
-
     enum FilterMode outfilter;
     int filters;
-
     AVFrame *frame_prev;
-
-    char* vrep_line;
-    unsigned int * filter_head_border;
-    unsigned int * filter_head_order;
-
+    char *vrep_line;
+    unsigned int *filter_head_border;
+    unsigned int *filter_head_order;
 } valuesContext;
-
-
-/* Prototypes for filter functions */
 
 static int filter_tout (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
 static int filter_vrep (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
 static int filter_range(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
 static int filter_head (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
-
 
 static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h);
 static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h);
@@ -93,9 +76,6 @@ static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  
 
 static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
 static const char *const filter_names[]     = { "tout", "vrep", "rang", "head", NULL };
-
-/* end of filter definitions */
-
 
 #define OFFSET(x) offsetof(valuesContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
@@ -146,7 +126,7 @@ static av_cold void uninit(AVFilterContext *ctx)
 
 static int query_formats(AVFilterContext *ctx)
 {
-    // will want more
+    // TODO: add more
     enum AVPixelFormat pix_fmts[] = {
         AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV411P,
         AV_PIX_FMT_NONE
@@ -197,7 +177,6 @@ static void burn_frame(AVFrame *f, int x, int y)
 
 static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h)
 {
-
     int y;
     int tol = 16; // this needs to be configurable.
     int lw = p->linesize[0];
@@ -205,9 +184,7 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
     int median;
     //int switching =1;
 
-    for (y=0; y< h; y++)
-    {
-
+    for (y = 0; y < h; y++) {
         int yw = y*lw;
         int x;
         // try not to get fooled by non matted video.
@@ -215,46 +192,36 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
 
         values->filter_head_border[y] = 0;
 
-
         if (p->data[0][yw] <= 16)
             col = p->data[0][yw];
 
-        for (x=0; x< w; x++)
-        {
+        for (x = 0; x < w; x++) {
             order[y] = x;
-
-            if (abs(col - p->data[0][yw + x]) > tol)
-            {
+            if (abs(col - p->data[0][yw + x]) > tol) {
                 values->filter_head_border[y] = x;
                 break;
             }
-
         }
     }
 
     // there is probably a better and easier (and faster) sorting method
-    for (y=0; y< h; y++ )
-    {
+    for (y = 0; y < h; y++ ) {
         int min = order[y];
         int select = y;
         int x;
 
-        for (x=y; x<h; x++)
-        {
-            if (order[x] < min)
-            {
+        for (x = y; x < h; x++) {
+            if (order[x] < min) {
                 min = order[x];
                 select = x;
             }
 
-            if (select != y)
-            {
+            if (select != y) {
                 min = order[y];
                 order[y] = order[select];
                 order[select] = min;
             }
         }
-
     }
 
     // especially if all I want now is the 50th percentile.
@@ -263,28 +230,21 @@ static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int
     median = order[98 * h / 100] ;
 
     // remove possible matting
-    for (y=0;y<h;y++)
-    {
+    for (y = 0; y < h; y++)
         if (values->filter_head_border[y] < median)
             values->filter_head_border[y] = 0;
-    }
 
     /*
-    for (y=h-1; y>0; y--)
-    {
-
+    for (y = h - 1; y > 0; y--) {
        if (values->filter_head_border[y] <= median )
            switching = 0;
-
         if (!switching)
             values->filter_head_border[y] = 0;
-
     }
     */
 }
 
-
-static int filter_head(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
+static int filter_head(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     const int filt = values->filter_head_border[y];
     if (out && filt) {
@@ -299,13 +259,13 @@ static void filter_init_range(valuesContext *values, const AVFrame *p, int w, in
 {
 }
 
-static int filter_range(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
+static int filter_range(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
     const int yc = FF_CEIL_RSHIFT(y, values->vsub);
-    const uint8_t *pluma    = &p->data[0][y  * p->linesize[0]];
-    const uint8_t *pchromau = &p->data[1][yc * p->linesize[1]];
-    const uint8_t *pchromav = &p->data[2][yc * p->linesize[2]];
+    const uint8_t *pluma    = &in->data[0][y  * in->linesize[0]];
+    const uint8_t *pchromau = &in->data[1][yc * in->linesize[1]];
+    const uint8_t *pchromav = &in->data[2][yc * in->linesize[2]];
 
     for (x = 0; x < w; x++) {
         const int xc = FF_CEIL_RSHIFT(x, values->hsub);
@@ -331,18 +291,17 @@ static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     return ((abs(x - y) + abs (z - y)) / 2) - abs(z - x) > 4; // make 4 configurable?
 }
 
-static int filter_tout(valuesContext *values, const AVFrame *f, AVFrame *out, int y, int w, int h)
+static int filter_tout(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
-    const uint8_t *p = f->data[0];
-    int lw = f->linesize[0];
+    const uint8_t *p = in->data[0];
+    int lw = in->linesize[0];
     int x, score = 0, filt;
 
     if (y - 1 < 0 || y + 1 >= h)
         return 0;
 
-
-            // detect two pixels above and below (to eliminate interlace artefacts)
-            // should check that video format is infact interlace.
+    // detect two pixels above and below (to eliminate interlace artefacts)
+    // should check that video format is infact interlace.
 
 #define FILTER(i, j) \
 filter_tout_outlier(p[(y-j) * lw + x + i], \
@@ -373,15 +332,12 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
 
 static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h)
 {
-
-    int i,y;
+    int i, y;
     int lw = p->linesize[0];
 
-    for (y = VREP_START; y < h; y++)
-    {
+    for (y = VREP_START; y < h; y++) {
         int totdiff = 0;
-
-        int y2lw = (y-VREP_START) * lw;
+        int y2lw = (y - VREP_START) * lw;
         int ylw = y * lw;
 
         for (i = 0; i < w; i++)
@@ -390,10 +346,9 @@ static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int
         /* this value should be definable */
         values->vrep_line[y] = totdiff < w;
     }
-
 }
 
-static int filter_vrep(valuesContext *values, const AVFrame *p, AVFrame *out, int y, int w, int h)
+static int filter_vrep(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
 
@@ -448,16 +403,16 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filters & 1<<fil)
-            filter_init[fil](values, in,link->w,link->h);
+            filter_init[fil](values, in, link->w, link->h);
     }
 
     for (j = 0; j < link->h; j++) {
         for (i = 0; i < link->w; i++) {
 
-            yuv = in->data[0][w+i];
+            yuv = in->data[0][w + i];
             histy[yuv]++;
 
-            dify += abs(in->data[0][w+i] - prev->data[0][pw+i]);
+            dify += abs(in->data[0][w + i] - prev->data[0][pw + i]);
 
             //if (in->interlaced_frame && (j % 2 == 0)) // every second line
             if (!(j & 1)) { // every second line
@@ -465,7 +420,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                // get bottom field
                // should check that we are not currently at the bottom line.
                 // but who has heard of an interlaced file with odd vertical dimentions?
-                int yuvi = in->data[0][w+in->linesize[0]+i];
+                int yuvi = in->data[0][w + in->linesize[0] + i];
 
                 // dif2 = diff bottom field with top field
 
@@ -474,10 +429,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
                 if (in->top_field_first)
                 {
                     // dif1 = diff top field with prev bottom field
-                    dify1 += abs(yuv - prev->data[0][pw+prev->linesize[0]+i]);
+                    dify1 += abs(yuv - prev->data[0][pw + prev->linesize[0] + i]);
                 } else {
                     // dif1 = diff bottom field with prev top field
-                    dify1 += abs(yuvi - prev->data[0][pw+i]);
+                    dify1 += abs(yuvi - prev->data[0][pw + i]);
                 }
 
             }
@@ -569,18 +524,15 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YDIF",  "%g", 1.0 * dify / values->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
     SET_META("VDIF",  "%g", 1.0 * difv / values->cfs);
-    SET_META("YDIF1",  "%g", 1.0 * dify1 / (values->fs/2));
-    SET_META("YDIF2",  "%g", 1.0 * dify2 / (values->fs/2));
+    SET_META("YDIF1", "%g", 1.0 * dify1 / (values->fs/2));
+    SET_META("YDIF2", "%g", 1.0 * dify2 / (values->fs/2));
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (values->filters & 1<<fil) {
-       //     SET_META(filter_metanames[fil],"%g",1.0 * filtot[fil]/values->fs);
-
             char metaname[128];
-            snprintf(metabuf,sizeof(metabuf),"%g",1.0 * filtot[fil]/values->fs);
-            snprintf(metaname,sizeof(metaname),"lavfi.values.%s",filter_metanames[fil]);
-            av_dict_set(&out->metadata,metaname,metabuf,0);
-
+            snprintf(metabuf,  sizeof(metabuf),  "%g", 1.0 * filtot[fil] / values->fs);
+            snprintf(metaname, sizeof(metaname), "lavfi.values.%s", filter_metanames[fil]);
+            av_dict_set(&out->metadata, metaname, metabuf, 0);
         }
     }
 
@@ -591,26 +543,26 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
 static const AVFilterPad values_inputs[] = {
     {
-        .name            = "default",
-        .type            = AVMEDIA_TYPE_VIDEO,
-        .min_perms       = AV_PERM_READ,
-        .filter_frame = filter_frame,
+        .name           = "default",
+        .type           = AVMEDIA_TYPE_VIDEO,
+        .min_perms      = AV_PERM_READ,
+        .filter_frame   = filter_frame,
     },
     { NULL }
 };
 
 static const AVFilterPad values_outputs[] = {
     {
-        .name            = "default",
-        .config_props     = config_props,
-        .type            = AVMEDIA_TYPE_VIDEO,
+        .name           = "default",
+        .config_props   = config_props,
+        .type           = AVMEDIA_TYPE_VIDEO,
     },
     { NULL }
 };
 
 AVFilter ff_vf_values = {
     .name          = "values",
-    .description   = ".",
+    .description   = "Extract various metrics.",
     .init          = init,
     .uninit        = uninit,
     .query_formats = query_formats,
