@@ -50,30 +50,6 @@ typedef struct {
     unsigned int *filter_head_order;
 } valuesContext;
 
-static int filter_tout (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
-static int filter_vrep (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
-static int filter_range(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
-static int filter_head (valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h);
-
-static void filter_init_tout(valuesContext *values, const AVFrame *p, int w, int h);
-static void filter_init_vrep(valuesContext *values, const AVFrame *p, int w, int h);
-static void filter_init_range(valuesContext *values, const AVFrame *p, int w, int h);
-static void filter_init_head(valuesContext *values, const AVFrame *p, int w, int h);
-
-static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
-    filter_tout,
-    filter_vrep,
-    filter_range,
-    filter_head
-};
-
-static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  int w, int h) = {
-    filter_init_tout,
-    filter_init_vrep,
-    filter_init_range,
-    filter_init_head
-};
-
 static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
 
 #define OFFSET(x) offsetof(valuesContext, x)
@@ -363,6 +339,20 @@ static int filter_vrep(valuesContext *values, const AVFrame *in, AVFrame *out, i
     }
     return score;
 }
+
+static int (*filter_call[FILT_NUMB])(valuesContext *values, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
+    filter_tout,
+    filter_vrep,
+    filter_range,
+    filter_head
+};
+
+static void (*filter_init[FILT_NUMB])(valuesContext *values, const AVFrame *p,  int w, int h) = {
+    filter_init_tout,
+    filter_init_vrep,
+    filter_init_range,
+    filter_init_head
+};
 
 #define DEPTH 256
 
