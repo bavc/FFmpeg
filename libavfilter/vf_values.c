@@ -364,19 +364,22 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int i, j;
     int  w = 0,  cw = 0, // in
         pw = 0, cpw = 0; // prev
-    int yuv;
+    int yuv,yuvu,yuvv;
     int fil;
     char metabuf[128];
     unsigned int histy[DEPTH] = {0},
                  histu[DEPTH] = {0},
-                 histv[DEPTH] = {0}; // limited to 8 bit data.
+                 histv[DEPTH] = {0},
+                histsat[DEPTH] = {0}; // limited to 8 bit data.
     int miny = -1, minu = -1, minv = -1;
     int maxy = -1, maxu = -1, maxv = -1;
     int lowy  = -1, lowu  = -1, lowv  = -1;
     int highy = -1, highu = -1, highv = -1;
+    int minsat=-1,maxsat=-1,lowsat=-1,highsat=-1;
     int lowp, highp, clowp, chighp;
     int accy, accu, accv;
-    int toty = 0, totu = 0, totv = 0;
+    int accsat;
+    int toty = 0, totu = 0, totv = 0,totsat=0;
     int dify = 0, difu = 0, difv = 0;
     int dify1 = 0, dify2 = 0;
 
@@ -385,6 +388,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     if (!values->frame_prev)
         values->frame_prev = av_frame_clone(in);
+    
     prev = values->frame_prev;
 
     if (values->outfilter != FILTER_NONE)
@@ -395,6 +399,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             filter_init[fil](values, in, link->w, link->h);
     }
 
+    // Calculate luma histogram and difference with previous frame or field.
     for (j = 0; j < link->h; j++) {
         for (i = 0; i < link->w; i++) {
 
@@ -430,14 +435,19 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         pw  += prev->linesize[0];
     }
 
+    // Calculate chroma histogram and difference with previous frame or field.
     for (j = 0; j < values->chromah; j++) {
         for (i = 0; i < values->chromaw; i++) {
-            histu[in->data[1][cw+i]]++;
+            yuvu = in->data[1][cw+i];
+            yuvv = in->data[2][cw+i];
+            histu[yuvu]++;
             difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
-        }
-        for (i = 0; i < values->chromaw; i++) {
-            histv[in->data[2][cw+i]]++;
+            histv[yuvv]++;
             difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
+            
+            // int or round?
+           int sat = floor(sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128)));
+            histsat[sat]++;
         }
         cw += in->linesize[1];
         cpw += prev->linesize[1];
@@ -460,31 +470,40 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     clowp  = values->cfs * 10 / 100;
     chighp = values->cfs * 95 / 100;
 
-    accy = 0; accu=0; accv=0;
+    accy = 0; accu=0; accv=0; accsat =0;
     for (fil = 0; fil < DEPTH; fil++) {
         if (miny < 0 && histy[fil]) miny = fil;
         if (minu < 0 && histu[fil]) minu = fil;
         if (minv < 0 && histv[fil]) minv = fil;
+        if (minsat <0 && histsat[fil]) minsat = fil;
 
         if (histy[fil]) maxy = fil;
         if (histu[fil]) maxu = fil;
         if (histv[fil]) maxv = fil;
+        if (histsat[fil]) maxsat = fil;
 
+        
         toty += histy[fil] * fil;
         totu += histu[fil] * fil;
         totv += histv[fil] * fil;
+        totsat += histsat[fil] * fil;
 
         accy += histy[fil];
         accu += histu[fil];
         accv += histv[fil];
+        accsat += histsat[fil];
 
         if (lowy == -1 && accy >=  lowp) lowy = fil;
         if (lowu == -1 && accu >= clowp) lowu = fil;
         if (lowv == -1 && accv >= clowp) lowv = fil;
+        if (lowsat == -1 && accsat >= clowp) lowsat = fil;
 
+        
         if (highy == -1 && accy >=  highp) highy = fil;
         if (highu == -1 && accu >= chighp) highu = fil;
         if (highv == -1 && accv >= chighp) highv = fil;
+        if (highsat == -1 && accsat >= chighp) highsat = fil;
+
     }
 
     av_frame_free(&values->frame_prev);
@@ -510,6 +529,12 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("VAVG",  "%g", 1.0 * totv / values->cfs);
     SET_META("VHIGH", "%d", highv);
     SET_META("VMAX",  "%d", maxv);
+    SET_META("SATMIN", "%d", minsat);
+    SET_META("SATLOW", "%d", lowsat);
+    SET_META("SATAVG", "%g", 1.0 * totsat / values->cfs);
+    SET_META("SATHIGH", "%d", highsat);
+    SET_META("SATMAX", "%d", maxsat);
+
     SET_META("YDIF",  "%g", 1.0 * dify / values->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
     SET_META("VDIF",  "%g", 1.0 * difv / values->cfs);
