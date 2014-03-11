@@ -515,6 +515,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     }
     
     maxhue = histhue[0]; modhue = 0;
+    medhue = -1;
     for (fil = 0; fil < 360; fil++) {
         tothue += histhue[fil] * fil;
         acchue += histhue[fil];
