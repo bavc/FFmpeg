@@ -21,6 +21,9 @@
 
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
+#include "libavcodec/mathops.h"
+#include "libavutil/libm.h"
+#include "libavutil/mathematics.h"
 #include "internal.h"
 
 enum FilterMode {
@@ -370,6 +373,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     unsigned int histy[DEPTH] = {0},
                  histu[DEPTH] = {0},
                  histv[DEPTH] = {0},
+    histhue[360] = {0},
                 histsat[DEPTH] = {0}; // limited to 8 bit data.
     int miny = -1, minu = -1, minv = -1;
     int maxy = -1, maxu = -1, maxv = -1;
@@ -378,8 +382,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int minsat=-1,maxsat=-1,lowsat=-1,highsat=-1;
     int lowp, highp, clowp, chighp;
     int accy, accu, accv;
-    int accsat;
+    int accsat,acchue=0;
+    int medhue,modhue,maxhue;
     int toty = 0, totu = 0, totv = 0,totsat=0;
+    int tothue = 0;
     int dify = 0, difu = 0, difv = 0;
     int dify1 = 0, dify2 = 0;
 
@@ -446,8 +452,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
             
             // int or round?
-           int sat = floor(sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128)));
+           int sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128));
             histsat[sat]++;
+            int hue = floor( (180 / M_PI ) *  atan2f (yuvu-128, yuvv-128) + 180);
+            histhue[hue] ++;
         }
         cw += in->linesize[1];
         cpw += prev->linesize[1];
@@ -505,6 +513,18 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (highsat == -1 && accsat >= chighp) highsat = fil;
 
     }
+    
+    maxhue = histhue[0]; modhue = 0;
+    for (fil = 0; fil < 360; fil++) {
+        tothue += histhue[fil] * fil;
+        acchue += histhue[fil];
+        
+        if (medhue == -1 && acchue > values->cfs / 2) medhue = fil;
+        if (histhue[fil] > maxhue ) {
+            maxhue = histhue[fil];
+            modhue = fil;
+        }
+    }
 
     av_frame_free(&values->frame_prev);
     values->frame_prev = av_frame_clone(in);
@@ -519,21 +539,28 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YAVG",  "%g", 1.0 * toty / values->fs);
     SET_META("YHIGH", "%d", highy);
     SET_META("YMAX",  "%d", maxy);
+    
     SET_META("UMIN",  "%d", minu);
     SET_META("ULOW",  "%d", lowu);
     SET_META("UAVG",  "%g", 1.0 * totu / values->cfs);
     SET_META("UHIGH", "%d", highu);
     SET_META("UMAX",  "%d", maxu);
+    
     SET_META("VMIN",  "%d", minv);
     SET_META("VLOW",  "%d", lowv);
     SET_META("VAVG",  "%g", 1.0 * totv / values->cfs);
     SET_META("VHIGH", "%d", highv);
     SET_META("VMAX",  "%d", maxv);
+    
     SET_META("SATMIN", "%d", minsat);
     SET_META("SATLOW", "%d", lowsat);
     SET_META("SATAVG", "%g", 1.0 * totsat / values->cfs);
     SET_META("SATHIGH", "%d", highsat);
     SET_META("SATMAX", "%d", maxsat);
+    
+    SET_META("HUEMOD","%d",modhue);
+    SET_META("HUEMED","%d",medhue);
+    SET_META("HUEAVG","%g",1.0 * tothue / values->cfs);
 
     SET_META("YDIF",  "%g", 1.0 * dify / values->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / values->cfs);
@@ -559,7 +586,7 @@ static const AVFilterPad values_inputs[] = {
     {
         .name           = "default",
         .type           = AVMEDIA_TYPE_VIDEO,
-        .min_perms      = AV_PERM_READ,
+      //  .min_perms      = AV_PERM_READ,
         .filter_frame   = filter_frame,
     },
     { NULL }
