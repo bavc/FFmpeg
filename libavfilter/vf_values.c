@@ -36,12 +36,14 @@ typedef struct {
     const AVClass *class;
     FILE *fh;
     char *filename;
+    char *colour;
     int chromah;
     int chromaw;
     int hsub;
     int vsub;
     int fs;
     int cfs;
+    int highlight[3];
     enum FilterMode outfilter;
     int filters;
     AVFrame *frame_prev;
@@ -56,6 +58,7 @@ typedef struct {
 static const AVOption values_options[] = {
     {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {"f",        "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
+    {"C",        "set highlight color", OFFSET(colour), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1, FLAGS, "out"},
         {"tout", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT},  0, 0, FLAGS, "out"},
         {"vrep", "", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
@@ -81,6 +84,16 @@ static av_cold int init(AVFilterContext *ctx)
     if (values->outfilter != FILTER_NONE)
         values->filters |= 1 << values->outfilter;
 
+    if (values->colour)
+    {
+        highlight[0]=235;
+        highlight[1]=-1;
+        highlight[2]=-1;
+        
+        int i = sscanf(values->colour,"%i,%i,%i",&highlight[0],&highlight[1],&highlight[2]);
+        
+    }
+    
     return 0;
 }
 
