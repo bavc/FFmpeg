@@ -520,7 +520,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         tothue += histhue[fil] * fil;
         acchue += histhue[fil];
         
-        if (medhue == -1 && acchue > values->cfs / 2) medhue = fil;
+        if (medhue == -1 && acchue > signalstats->cfs / 2) medhue = fil;
         if (histhue[fil] > maxhue ) {
             maxhue = histhue[fil];
             modhue = fil;
@@ -561,7 +561,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     
     SET_META("HUEMOD","%d",modhue);
     SET_META("HUEMED","%d",medhue);
-    SET_META("HUEAVG","%g",1.0 * tothue / values->cfs);
+    SET_META("HUEAVG","%g",1.0 * tothue / signalstats->cfs);
 
     SET_META("YDIF",  "%g", 1.0 * dify / signalstats->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / signalstats->cfs);
