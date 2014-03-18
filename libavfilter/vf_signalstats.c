@@ -89,12 +89,12 @@ static av_cold int init(AVFilterContext *ctx)
 
     if (values->colour)
     {
-        highlight[0]=235;
-        highlight[1]=-1;
-        highlight[2]=-1;
+        signalstats->highlight[0]=235;
+        signalstats->highlight[1]=-1;
+        signalstats->highlight[2]=-1;
         
-        int i = sscanf(values->colour,"%i,%i,%i",&highlight[0],&highlight[1],&highlight[2]);
-        
+        int i = sscanf(values->colour,"%i,%i,%i",&signalstats->highlight[0],&signalstats->highlight[1],&signalstats->highlight[2]);
+        // test i
     }
     
     return 0;
@@ -159,9 +159,14 @@ static int config_props(AVFilterLink *outlink)
     return 0;
 }
 
-static void burn_frame(AVFrame *f, int x, int y)
+static void burn_frame(signalstatsContext *signalstats, AVFrame *f, int x, int y)
 {
-    f->data[0][y * f->linesize[0] + x] = 235;
+    f->data[0][y * f->linesize[0] + x] = signalstats->highlight[0];
+    if (signalstats->highlight[1] != -1 && signalstats->highlight[2] != -1)
+    {
+        // work out relative chroma pixel.
+        // set chroma pixel
+    }
 }
 
 static void filter_init_head(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
@@ -239,7 +244,7 @@ static int filter_head(signalstatsContext *signalstats, const AVFrame *in, AVFra
     if (out && filt) {
         int x;
         for (x = 0; x < w; x++)
-            burn_frame(out, x, y);
+            burn_frame(signalstats, out, x, y);
     }
     return filt;
 }
@@ -266,7 +271,7 @@ static int filter_range(signalstatsContext *signalstats, const AVFrame *in, AVFr
                          chromav < 16 || chromav > 240;
         score += filt;
         if (out && filt)
-            burn_frame(out, x, y);
+            burn_frame(signalstats, out, x, y);
     }
     return score;
 }
@@ -304,14 +309,14 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
             filt = FILTER3(2) && FILTER3(1);
             score += filt;
             if (filt && out)
-                burn_frame(out, x, y);
+                burn_frame(signalstats, out, x, y);
         }
     } else {
         for (x = 1; x < w - 1; x++) {
             filt = FILTER3(1);
             score += filt;
             if (filt && out)
-                burn_frame(out, x, y);
+                burn_frame(signalstats, out, x, y);
         }
     }
     return score;
@@ -348,7 +353,7 @@ static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFra
         if (signalstats->vrep_line[y]) {
             score++;
             if (out)
-                burn_frame(out, x, y);
+                burn_frame(signalstats, out, x, y);
         }
     }
     return score;
