@@ -217,7 +217,7 @@ OBJS-$(CONFIG_W3FDIF_FILTER)                 += vf_w3fdif.o
 OBJS-$(CONFIG_YADIF_FILTER)                  += vf_yadif.o
 OBJS-$(CONFIG_WATERMARK_FILTER)              += vf_watermark.o
 OBJS-$(CONFIG_BROADCAST_FILTER)		     += vf_broadcast.o
-OBJS-$(CONFIG_VALUES_FILTER)		     += vf_values.o
+OBJS-$(CONFIG_SIGNALSTATS_FILTER)	     += vf_signalstats.o
 OBJS-$(CONFIG_ZMQ_FILTER)                    += f_zmq.o
 
 OBJS-$(CONFIG_CELLAUTO_FILTER)               += vsrc_cellauto.o
