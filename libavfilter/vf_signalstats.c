@@ -87,14 +87,29 @@ static av_cold int init(AVFilterContext *ctx)
     if (signalstats->outfilter != FILTER_NONE)
         signalstats->filters |= 1 << signalstats->outfilter;
 
-    if (values->colour)
+    signalstats->highlight[0]=235;
+    signalstats->highlight[1]=-1;
+    signalstats->highlight[2]=-1;
+
+    
+    if (signalstats->colour)
     {
-        signalstats->highlight[0]=235;
-        signalstats->highlight[1]=-1;
-        signalstats->highlight[2]=-1;
         
-        int i = sscanf(values->colour,"%i,%i,%i",&signalstats->highlight[0],&signalstats->highlight[1],&signalstats->highlight[2]);
+        int i = sscanf(signalstats->colour,"%i.%i.%i",&signalstats->highlight[0],&signalstats->highlight[1],&signalstats->highlight[2]);
         // test i
+        if (i==0)
+        {
+            signalstats->highlight[0]=235;
+        }
+        
+        if (i<=1)
+        {
+            signalstats->highlight[1]=-1;
+            signalstats->highlight[2]=-1;
+
+        }
+        
+        
     }
     
     return 0;
@@ -164,8 +179,15 @@ static void burn_frame(signalstatsContext *signalstats, AVFrame *f, int x, int y
     f->data[0][y * f->linesize[0] + x] = signalstats->highlight[0];
     if (signalstats->highlight[1] != -1 && signalstats->highlight[2] != -1)
     {
+        
         // work out relative chroma pixel.
+        int chromax = FF_CEIL_RSHIFT(x, signalstats->hsub);
+        int chromay = FF_CEIL_RSHIFT(y, signalstats->vsub);
+        
         // set chroma pixel
+        f->data[1][chromay * f->linesize[1] + chromax] = signalstats->highlight[1];
+        f->data[2][chromay * f->linesize[2] + chromax] = signalstats->highlight[2];
+        
     }
 }
 
