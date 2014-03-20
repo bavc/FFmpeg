@@ -225,7 +225,7 @@ static int filter_head(signalstatsContext *signalstats, const AVFrame *in, AVFra
     const int filt = signalstats->filter_head_border[y];
     if (out && filt) {
         int x;
-        for (x = 0; x < w; x++)
+        for (x = 0; x < filt; x++)
             burn_frame(out, x, y);
     }
     return filt;
