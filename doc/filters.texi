@@ -7409,6 +7409,152 @@ Adler-32 checksum (printed in hexadecimal) of each plane of the input frame,
 expressed in the form "[@var{c0} @var{c1} @var{c2} @var{c3}]"
 @end table
 
+@section signalstats
+Evaluate various audiovisual metrics that assist in determining issues associated with the digitization of analog video media.
+
+By default the filter will log these metadata values:
+
+@table @option
+@item YMIN
+Display the minimal Y value contained within the input frame. Expressed in range of [0-255].
+
+@item YLOW
+Display the Y value at the 10% percentile within the input frame. Expressed in range of [0-255].
+
+@item YAVG
+Display the average Y value within the input frame. Expressed in range of [0-255].
+
+@item YHIGH
+Display the Y value at the 95% percentile within the input frame. Expressed in range of [0-255].
+
+@item YMAX
+Display the maximum Y value contained within the input frame. Expressed in range of [0-255].
+
+@item UMIN
+Display the minimal U value contained within the input frame. Expressed in range of [0-255].
+
+@item ULOW
+Display the U value at the 10% percentile within the input frame. Expressed in range of [0-255].
+
+@item UAVG
+Display the average U value within the input frame. Expressed in range of [0-255].
+
+@item UHIGH
+Display the U value at the 95% percentile within the input frame. Expressed in range of [0-255].
+
+@item UMAX
+Display the maximum U value contained within the input frame. Expressed in range of [0-255].
+
+@item VMIN
+Display the minimal V value contained within the input frame. Expressed in range of [0-255].
+
+@item VLOW
+Display the V value at the 10% percentile within the input frame. Expressed in range of [0-255].
+
+@item VAVG
+Display the average V value within the input frame. Expressed in range of [0-255].
+
+@item VHIGH
+Display the V value at the 95% percentile within the input frame. Expressed in range of [0-255].
+
+@item VMAX
+Display the maximum V value contained within the input frame. Expressed in range of [0-255].
+
+@item SATMIN
+Display the minimal saturation value contained within the input frame. Expressed in range of [0-~181.02].
+
+@item SATLOW
+Display the saturation value at the 10% percentile within the input frame. Expressed in range of [0-~181.02].
+
+@item SATAVG
+Display the average saturation value within the input frame. Expressed in range of [0-~181.02].
+
+@item SATHIGH
+Display the saturation value at the 95% percentile within the input frame. Expressed in range of [0-~181.02].
+
+@item SATMAX
+Display the maximum saturation value contained within the input frame. Expressed in range of [0-~181.02].
+
+@item HUEMOD
+Display the mode value for hue within the input frame. Expressed in range of [0-360].
+
+@item HUEMED
+Display the median value for hue within the input frame. Expressed in range of [0-360].
+
+@item HUEAVG
+Display the average value for hue within the input frame. Expressed in range of [0-360].
+
+@item YDIF
+Display a quantification of the visual change on the Y plane between the input frame and the previous input frame.
+
+@item UDIF
+Display a quantification of the visual change on the U plane between the input frame and the previous input frame.
+
+@item VDIF
+Display a quantification of the visual change on the V plane between the input frame and the previous input frame.
+
+@item YDIF1
+Depending on the field order, this filter performs a difference between the previous odd field and the current even field (or the previous even field and the current odd field).
+
+@item YDIF2
+Display a quantification of the visual difference between the current odd field and current even field.
+@end table
+
+The filter accepts the following options:
+
+@table @option
+@item out
+Specify an additional form of image analysis. It accepts the following values:
+
+@table @option
+@item tout
+Identify @var{temporal outliers} pixels. A @var{temporal outlier} is a pixel unlike the neighboring pixels of the same field. Examples of temporal outliers include the results of video dropouts, head clogs, or tape tracking issues.
+
+@item vrep
+Identify @var{vertical line repetition}. Vertical line repition includes similar rows of pixels within a frame. In born-digital video vertical line repitition is common, but this pattern is uncommon in video digitized from an analog source. When it occurs in video that results from the digitization of an analog source it can indicate concealment from a dropout compensator.
+
+@item rang
+Identify pixels that fall outside of legal broadcast range.
+
+@item head
+Identify pixels that fall within video head switching.
+
+@end table
+@end table
+
+@table @option
+@item stat
+Output video with the specified type of pixel highlighted. It accepts the following values:
+
+@table @option
+@item tout
+@item vrep
+@item rang
+@item head
+@end table
+@end table
+
+@subsection Examples
+
+@itemize
+@item
+Output data of various video metrics:
+@example
+ffprobe -f lavfi movie=example.mov,signalstats="stat=tout+vrep+rang+head" -show_frames
+@end example
+
+@item
+Output specific data about the minimum and maximum values of the Y plane per frame:
+@example
+ffprobe -f lavfi movie=example.mov,signalstats -show_entries frame_tags=lavfi.values.YMAX,lavfi.values.YMIN
+
+@item
+Playback video while highlighting pixels that are outside of broadcast range.
+@example
+ffplay example.mov -vf values="out=rang"
+@end example
+@end itemize
+
 @anchor{smartblur}
 @section smartblur
 
