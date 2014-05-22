@@ -31,7 +31,6 @@ enum FilterMode {
     FILTER_TOUT,
     FILTER_VREP,
     FILTER_RANGE,
-    FILTER_HEADSWITCHING,
     FILT_NUMB
 };
 
@@ -49,8 +48,6 @@ typedef struct {
     int filters;
     AVFrame *frame_prev;
     char *vrep_line;
-    unsigned int *filter_head_border;
-    unsigned int *filter_head_order;
 } signalstatsContext;
 
 #define OFFSET(x) offsetof(signalstatsContext, x)
@@ -68,7 +65,7 @@ static const AVOption signalstats_options[] = {
         {"tout", "highlight pixels that depict temporal outliers", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_TOUT},          0, 0, FLAGS, "filters"},
         {"vrep", "highlight video lines that depict vertical line repitition", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_VREP},          0, 0, FLAGS, "filters"},
         {"rang", "highlight pixels that are outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_RANGE},         0, 0, FLAGS, "filters"},
-        {"head", "highlight pixels depicting head switching", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_HEADSWITCHING}, 0, 0, FLAGS, "filters"},
+
     {NULL}
 };
 
@@ -93,9 +90,6 @@ static av_cold void uninit(AVFilterContext *ctx)
     if (signalstats->fh)
         fclose(signalstats->fh);
     av_frame_free(&signalstats->frame_prev);
-
-    av_freep(&signalstats->filter_head_border);
-    av_freep(&signalstats->filter_head_order);
 
     av_freep(&signalstats->vrep_line);
 }
@@ -130,13 +124,6 @@ static int config_props(AVFilterLink *outlink)
     signalstats->fs = inlink->w * inlink->h;
     signalstats->cfs = signalstats->chromaw * signalstats->chromah;
 
-    if (signalstats->filters & 1<<FILTER_HEADSWITCHING) {
-        signalstats->filter_head_border = av_malloc(inlink->h * sizeof(*signalstats->filter_head_border));
-        signalstats->filter_head_order  = av_malloc(inlink->h * sizeof(*signalstats->filter_head_order));
-        if (!signalstats->filter_head_border || !signalstats->filter_head_order)
-            return AVERROR(ENOMEM);
-    }
-
     if (signalstats->filters & 1<<FILTER_VREP) {
         signalstats->vrep_line = av_malloc(inlink->h * sizeof(*signalstats->vrep_line));
         if (!signalstats->vrep_line)
@@ -151,85 +138,6 @@ static void burn_frame(AVFrame *f, int x, int y)
     f->data[0][y * f->linesize[0] + x] = 235;
 }
 
-static void filter_init_head(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
-{
-    int y;
-    int tol = 16; // this needs to be configurable.
-    int lw = p->linesize[0];
-    unsigned int *order = signalstats->filter_head_order;
-    int median;
-    //int switching =1;
-
-    for (y = 0; y < h; y++) {
-        int yw = y*lw;
-        int x;
-        // try not to get fooled by non matted video.
-        int col = 16;
-
-        signalstats->filter_head_border[y] = 0;
-
-        if (p->data[0][yw] <= 16)
-            col = p->data[0][yw];
-
-        for (x = 0; x < w; x++) {
-            order[y] = x;
-            if (abs(col - p->data[0][yw + x]) > tol) {
-                signalstats->filter_head_border[y] = x;
-                break;
-            }
-        }
-    }
-
-    // there is probably a better and easier (and faster) sorting method
-    for (y = 0; y < h; y++ ) {
-        int min = order[y];
-        int select = y;
-        int x;
-
-        for (x = y; x < h; x++) {
-            if (order[x] < min) {
-                min = order[x];
-                select = x;
-            }
-
-            if (select != y) {
-                min = order[y];
-                order[y] = order[select];
-                order[select] = min;
-            }
-        }
-    }
-
-    // especially if all I want now is the 50th percentile.
-    // or 98th depending on what mood the head switching pattern is in.
-
-    median = order[98 * h / 100] ;
-
-    // remove possible matting
-    for (y = 0; y < h; y++)
-        if (signalstats->filter_head_border[y] < median)
-            signalstats->filter_head_border[y] = 0;
-
-    /*
-    for (y = h - 1; y > 0; y--) {
-       if (signalstats->filter_head_border[y] <= median )
-           switching = 0;
-        if (!switching)
-            signalstats->filter_head_border[y] = 0;
-    }
-    */
-}
-
-static int filter_head(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h)
-{
-    const int filt = signalstats->filter_head_border[y];
-    if (out && filt) {
-        int x;
-        for (x = 0; x < filt; x++)
-            burn_frame(out, x, y);
-    }
-    return filt;
-}
 
 static void filter_init_range(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
 {
@@ -341,20 +249,18 @@ static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFra
     return score;
 }
 
-static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", "HEAD", NULL };
+static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", NULL };
 
 static int (*filter_call[FILT_NUMB])(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_range,
-    filter_head,
 };
 
 static void (*filter_init[FILT_NUMB])(signalstatsContext *signalstats, const AVFrame *p,  int w, int h) = {
     filter_init_tout,
     filter_init_vrep,
     filter_init_range,
-    filter_init_head,
 };
 
 #define DEPTH 256
