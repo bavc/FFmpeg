@@ -7547,6 +7547,7 @@ ffprobe -f lavfi movie=example.mov,signalstats="stat=tout+vrep+rang+head" -show_
 Output specific data about the minimum and maximum values of the Y plane per frame:
 @example
 ffprobe -f lavfi movie=example.mov,signalstats -show_entries frame_tags=lavfi.values.YMAX,lavfi.values.YMIN
+@end example
 
 @item
 Playback video while highlighting pixels that are outside of broadcast range.
