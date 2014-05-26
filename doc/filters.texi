@@ -7516,9 +7516,6 @@ Identify @var{vertical line repetition}. Vertical line repition includes similar
 @item rang
 Identify pixels that fall outside of legal broadcast range.
 
-@item head
-Identify pixels that fall within video head switching.
-
 @end table
 @end table
 
@@ -7530,7 +7527,6 @@ Output video with the specified type of pixel highlighted. It accepts the follow
 @item tout
 @item vrep
 @item rang
-@item head
 @end table
 @end table
 
@@ -7540,7 +7536,7 @@ Output video with the specified type of pixel highlighted. It accepts the follow
 @item
 Output data of various video metrics:
 @example
-ffprobe -f lavfi movie=example.mov,signalstats="stat=tout+vrep+rang+head" -show_frames
+ffprobe -f lavfi movie=example.mov,signalstats="stat=tout+vrep+rang" -show_frames
 @end example
 
 @item
