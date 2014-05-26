@@ -7513,7 +7513,7 @@ Identify @var{temporal outliers} pixels. A @var{temporal outlier} is a pixel unl
 @item vrep
 Identify @var{vertical line repetition}. Vertical line repition includes similar rows of pixels within a frame. In born-digital video vertical line repitition is common, but this pattern is uncommon in video digitized from an analog source. When it occurs in video that results from the digitization of an analog source it can indicate concealment from a dropout compensator.
 
-@item rang
+@item brng
 Identify pixels that fall outside of legal broadcast range.
 
 @end table
@@ -7526,7 +7526,7 @@ Output video with the specified type of pixel highlighted. It accepts the follow
 @table @option
 @item tout
 @item vrep
-@item rang
+@item brng
 @end table
 @end table
 
@@ -7548,7 +7548,7 @@ ffprobe -f lavfi movie=example.mov,signalstats -show_entries frame_tags=lavfi.va
 @item
 Playback video while highlighting pixels that are outside of broadcast range.
 @example
-ffplay example.mov -vf values="out=rang"
+ffplay example.mov -vf values="out=brng"
 @end example
 @end itemize
 
