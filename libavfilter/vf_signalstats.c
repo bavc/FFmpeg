@@ -30,7 +30,7 @@ enum FilterMode {
     FILTER_NONE = -1,
     FILTER_TOUT,
     FILTER_VREP,
-    FILTER_RANGE,
+    FILTER_BRNG,
     FILT_NUMB
 };
 
@@ -59,11 +59,11 @@ static const AVOption signalstats_options[] = {
     {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1, FLAGS, "out"},
         {"tout", "analyze pixels for temporal outliers", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT},  0, 0, FLAGS, "out"},
         {"vrep", "analyze video lines for vertical line repitition", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
-        {"rang", "analyze for pixels outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_RANGE}, 0, 0, FLAGS, "out"},
+        {"brng", "analyze for pixels outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_BRNG}, 0, 0, FLAGS, "out"},
     {"stat", "statistics filters", OFFSET(filters), AV_OPT_TYPE_FLAGS, {.i64=0}, 0, INT_MAX, FLAGS, "filters"},
         {"tout", "highlight pixels that depict temporal outliers", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_TOUT},          0, 0, FLAGS, "filters"},
         {"vrep", "highlight video lines that depict vertical line repitition", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_VREP},          0, 0, FLAGS, "filters"},
-        {"rang", "highlight pixels that are outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_RANGE},         0, 0, FLAGS, "filters"},
+        {"brng", "highlight pixels that are outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_BRNG},         0, 0, FLAGS, "filters"},
 
     {NULL}
 };
@@ -138,11 +138,11 @@ static void burn_frame(AVFrame *f, int x, int y)
 }
 
 
-static void filter_init_range(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
+static void filter_init_brng(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
 {
 }
 
-static int filter_range(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h)
+static int filter_brng(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
     const int yc = FF_CEIL_RSHIFT(y, signalstats->vsub);
@@ -248,18 +248,18 @@ static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFra
     return score;
 }
 
-static const char *const filter_metanames[] = { "TOUT", "VREP", "RANG", NULL };
+static const char *const filter_metanames[] = { "TOUT", "VREP", "BRNG", NULL };
 
 static int (*filter_call[FILT_NUMB])(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
-    filter_range,
+    filter_brng,
 };
 
 static void (*filter_init[FILT_NUMB])(signalstatsContext *signalstats, const AVFrame *p,  int w, int h) = {
     filter_init_tout,
     filter_init_vrep,
-    filter_init_range,
+    filter_init_brng,
 };
 
 #define DEPTH 256
