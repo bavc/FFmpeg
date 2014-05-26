@@ -509,7 +509,7 @@ static const AVFilterPad signalstats_outputs[] = {
 
 AVFilter ff_vf_signalstats = {
     .name          = "signalstats",
-    .description   = "Extract various metrics.",
+    .description   = "Generate statistics from video analysis.",
     .init          = init,
     .uninit        = uninit,
     .query_formats = query_formats,
