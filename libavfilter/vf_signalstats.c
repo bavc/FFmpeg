@@ -334,8 +334,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             if (!(j & 1)) { // every second line
 
-               // get bottom field
-               // should check that we are not currently at the bottom line.
+                // get bottom field
+                // should check that we are not currently at the bottom line.
                 // but who has heard of an interlaced file with odd vertical dimentions?
                 int yuvi = in->data[0][w + in->linesize[0] + i];
 
@@ -354,12 +354,14 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             }
         }
         w  += in->linesize[0];
-        pw  += prev->linesize[0];
+        pw += prev->linesize[0];
     }
 
     // Calculate chroma histogram and difference with previous frame or field.
     for (j = 0; j < s->chromah; j++) {
         for (i = 0; i < s->chromaw; i++) {
+            int sat, hue;
+
             yuvu = in->data[1][cw+i];
             yuvv = in->data[2][cw+i];
             histu[yuvu]++;
@@ -368,12 +370,12 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
 
             // int or round?
-           int sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128));
+            sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128));
             histsat[sat]++;
-            int hue = floor( (180 / M_PI ) *  atan2f (yuvu-128, yuvv-128) + 180);
+            hue = floor((180 / M_PI) * atan2f(yuvu-128, yuvv-128) + 180);
             histhue[hue] ++;
         }
-        cw += in->linesize[1];
+        cw  += in->linesize[1];
         cpw += prev->linesize[1];
     }
 
