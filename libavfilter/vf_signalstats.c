@@ -145,8 +145,8 @@ static int config_props(AVFilterLink *outlink)
 
 static void burn_frame(SignalstatsContext *s, AVFrame *f, int x, int y)
 {
-    const int chromax = FF_CEIL_RSHIFT(x, s->hsub);
-    const int chromay = FF_CEIL_RSHIFT(y, s->vsub);
+    const int chromax = x >> s->hsub;
+    const int chromay = y >> s->vsub;
     f->data[0][y       * f->linesize[0] +       x] = s->yuv_color[0];
     f->data[1][chromay * f->linesize[1] + chromax] = s->yuv_color[1];
     f->data[2][chromay * f->linesize[2] + chromax] = s->yuv_color[2];
@@ -155,13 +155,13 @@ static void burn_frame(SignalstatsContext *s, AVFrame *f, int x, int y)
 static int filter_brng(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
-    const int yc = FF_CEIL_RSHIFT(y, s->vsub);
+    const int yc = y >> s->vsub;
     const uint8_t *pluma    = &in->data[0][y  * in->linesize[0]];
     const uint8_t *pchromau = &in->data[1][yc * in->linesize[1]];
     const uint8_t *pchromav = &in->data[2][yc * in->linesize[2]];
 
     for (x = 0; x < w; x++) {
-        const int xc = FF_CEIL_RSHIFT(x, s->hsub);
+        const int xc = x >> s->hsub;
         const int luma    = pluma[x];
         const int chromau = pchromau[xc];
         const int chromav = pchromav[xc];
