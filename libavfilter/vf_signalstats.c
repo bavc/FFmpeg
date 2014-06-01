@@ -60,16 +60,15 @@ static const AVOption signalstats_options[] = {
     {"filename", "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {"f",        "set output file", OFFSET(filename), AV_OPT_TYPE_STRING, {.str=NULL}, .flags=FLAGS},
     {"out", "set video filter", OFFSET(outfilter), AV_OPT_TYPE_INT, {.i64=FILTER_NONE}, -1, FILT_NUMB-1, FLAGS, "out"},
-        {"tout", "highlight pixels that depict temporal outliers", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT},  0, 0, FLAGS, "out"},
-        {"vrep", "highlight video lines that depict vertical line repitition", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP},  0, 0, FLAGS, "out"},
-        {"brng", "highlight pixels that are outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=FILTER_BRNG}, 0, 0, FLAGS, "out"},
+        {"tout", "highlight pixels that depict temporal outliers",              0, AV_OPT_TYPE_CONST, {.i64=FILTER_TOUT}, 0, 0, FLAGS, "out"},
+        {"vrep", "highlight video lines that depict vertical line repitition",  0, AV_OPT_TYPE_CONST, {.i64=FILTER_VREP}, 0, 0, FLAGS, "out"},
+        {"brng", "highlight pixels that are outside of broadcast range",        0, AV_OPT_TYPE_CONST, {.i64=FILTER_BRNG}, 0, 0, FLAGS, "out"},
     {"stat", "set statistics filters", OFFSET(filters), AV_OPT_TYPE_FLAGS, {.i64=0}, 0, INT_MAX, FLAGS, "filters"},
-        {"tout", "analyze pixels for temporal outliers", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_TOUT},          0, 0, FLAGS, "filters"},
-        {"vrep", "analyze video lines for vertical line repitition", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_VREP},          0, 0, FLAGS, "filters"},
-        {"brng", "analyze for pixels outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_BRNG},         0, 0, FLAGS, "filters"},
+        {"tout", "analyze pixels for temporal outliers",                0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_TOUT}, 0, 0, FLAGS, "filters"},
+        {"vrep", "analyze video lines for vertical line repitition",    0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_VREP}, 0, 0, FLAGS, "filters"},
+        {"brng", "analyze for pixels outside of broadcast range",       0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_BRNG}, 0, 0, FLAGS, "filters"},
     {"c",     "set highlight color", OFFSET(rgba_color), AV_OPT_TYPE_COLOR, {.str="white"}, .flags=FLAGS},
     {"color", "set highlight color", OFFSET(rgba_color), AV_OPT_TYPE_COLOR, {.str="white"}, .flags=FLAGS},
-
     {NULL}
 };
 
@@ -314,16 +313,15 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     if (!s->frame_prev)
         s->frame_prev = av_frame_clone(in);
-    
+
     prev = s->frame_prev;
 
     if (s->outfilter != FILTER_NONE)
         out = av_frame_clone(in);
 
-    for (fil = 0; fil < FILT_NUMB; fil ++) {
+    for (fil = 0; fil < FILT_NUMB; fil ++)
         if (s->filters & 1<<fil)
             filter_init[fil](s, in, link->w, link->h);
-    }
 
     // Calculate luma histogram and difference with previous frame or field.
     for (j = 0; j < link->h; j++) {
@@ -334,7 +332,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             dify += abs(in->data[0][w + i] - prev->data[0][pw + i]);
 
-            //if (in->interlaced_frame && (j % 2 == 0)) // every second line
             if (!(j & 1)) { // every second line
 
                // get bottom field
@@ -346,8 +343,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
                 dify2 += abs(yuv - yuvi);
 
-                if (in->top_field_first)
-                {
+                if (in->top_field_first) {
                     // dif1 = diff top field with prev bottom field
                     dify1 += abs(yuv - prev->data[0][pw + prev->linesize[0] + i]);
                 } else {
@@ -370,7 +366,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             difu += abs(in->data[1][cw+i] - prev->data[1][cpw+i]);
             histv[yuvv]++;
             difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
-            
+
             // int or round?
            int sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128));
             histsat[sat]++;
@@ -410,7 +406,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (histv[fil]) maxv = fil;
         if (histsat[fil]) maxsat = fil;
 
-        
+
         toty += histy[fil] * fil;
         totu += histu[fil] * fil;
         totv += histv[fil] * fil;
@@ -426,20 +422,20 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (lowv == -1 && accv >= clowp) lowv = fil;
         if (lowsat == -1 && accsat >= clowp) lowsat = fil;
 
-        
+
         if (highy == -1 && accy >=  highp) highy = fil;
         if (highu == -1 && accu >= chighp) highu = fil;
         if (highv == -1 && accv >= chighp) highv = fil;
         if (highsat == -1 && accsat >= chighp) highsat = fil;
 
     }
-    
+
     maxhue = histhue[0]; modhue = 0;
     medhue = -1;
     for (fil = 0; fil < 360; fil++) {
         tothue += histhue[fil] * fil;
         acchue += histhue[fil];
-        
+
         if (medhue == -1 && acchue > s->cfs / 2) medhue = fil;
         if (histhue[fil] > maxhue ) {
             maxhue = histhue[fil];
@@ -460,25 +456,25 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YAVG",  "%g", 1.0 * toty / s->fs);
     SET_META("YHIGH", "%d", highy);
     SET_META("YMAX",  "%d", maxy);
-    
+
     SET_META("UMIN",  "%d", minu);
     SET_META("ULOW",  "%d", lowu);
     SET_META("UAVG",  "%g", 1.0 * totu / s->cfs);
     SET_META("UHIGH", "%d", highu);
     SET_META("UMAX",  "%d", maxu);
-    
+
     SET_META("VMIN",  "%d", minv);
     SET_META("VLOW",  "%d", lowv);
     SET_META("VAVG",  "%g", 1.0 * totv / s->cfs);
     SET_META("VHIGH", "%d", highv);
     SET_META("VMAX",  "%d", maxv);
-    
+
     SET_META("SATMIN", "%d", minsat);
     SET_META("SATLOW", "%d", lowsat);
     SET_META("SATAVG", "%g", 1.0 * totsat / s->cfs);
     SET_META("SATHIGH", "%d", highsat);
     SET_META("SATMAX", "%d", maxsat);
-    
+
     SET_META("HUEMOD","%d",modhue);
     SET_META("HUEMED","%d",medhue);
     SET_META("HUEAVG","%g",1.0 * tothue / s->cfs);
@@ -507,7 +503,6 @@ static const AVFilterPad signalstats_inputs[] = {
     {
         .name           = "default",
         .type           = AVMEDIA_TYPE_VIDEO,
-      //  .min_perms      = AV_PERM_READ,
         .filter_frame   = filter_frame,
     },
     { NULL }
