@@ -152,10 +152,6 @@ static void burn_frame(SignalstatsContext *s, AVFrame *f, int x, int y)
     f->data[2][chromay * f->linesize[2] + chromax] = s->yuv_color[2];
 }
 
-static void filter_init_brng(SignalstatsContext *s, const AVFrame *p, int w, int h)
-{
-}
-
 static int filter_brng(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
@@ -177,10 +173,6 @@ static int filter_brng(SignalstatsContext *s, const AVFrame *in, AVFrame *out, i
             burn_frame(s, out, x, y);
     }
     return score;
-}
-
-static void filter_init_tout(SignalstatsContext *s, const AVFrame *p, int w, int h)
-{
 }
 
 static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
@@ -262,18 +254,15 @@ static int filter_vrep(SignalstatsContext *s, const AVFrame *in, AVFrame *out, i
     return score;
 }
 
-static const char *const filter_metanames[] = { "TOUT", "VREP", "BRNG", NULL };
-
-static int (*filter_call[FILT_NUMB])(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
-    filter_tout,
-    filter_vrep,
-    filter_brng,
-};
-
-static void (*filter_init[FILT_NUMB])(SignalstatsContext *s, const AVFrame *p,  int w, int h) = {
-    filter_init_tout,
-    filter_init_vrep,
-    filter_init_brng,
+static const struct {
+    const char *name;
+    void (*init)(SignalstatsContext *s, const AVFrame *p, int w, int h);
+    int (*process)(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h);
+} filters_def[] = {
+    {"TOUT", NULL,              filter_tout},
+    {"VREP", filter_init_vrep,  filter_vrep},
+    {"BRNG", NULL,              filter_brng},
+    {NULL}
 };
 
 #define DEPTH 256
@@ -320,8 +309,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         out = av_frame_clone(in);
 
     for (fil = 0; fil < FILT_NUMB; fil ++)
-        if (s->filters & 1<<fil)
-            filter_init[fil](s, in, link->w, link->h);
+        if ((s->filters & 1<<fil) && filters_def[fil].init)
+            filters_def[fil].init(s, in, link->w, link->h);
 
     // Calculate luma histogram and difference with previous frame or field.
     for (j = 0; j < link->h; j++) {
@@ -383,7 +372,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         for (fil = 0; fil < FILT_NUMB; fil ++) {
             if (s->filters & 1<<fil) {
                 AVFrame *dbg = out != in && s->outfilter == fil ? out : NULL;
-                filtot[fil] += filter_call[fil](s, in, dbg, j, link->w, link->h);
+                filtot[fil] += filters_def[fil].process(s, in, dbg, j, link->w, link->h);
             }
         }
     }
@@ -491,7 +480,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (s->filters & 1<<fil) {
             char metaname[128];
             snprintf(metabuf,  sizeof(metabuf),  "%g", 1.0 * filtot[fil] / s->fs);
-            snprintf(metaname, sizeof(metaname), "lavfi.values.%s", filter_metanames[fil]);
+            snprintf(metaname, sizeof(metaname), "lavfi.values.%s", filters_def[fil].name);
             av_dict_set(&out->metadata, metaname, metabuf, 0);
         }
     }
