@@ -381,9 +381,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     // these only need to be calculated once.
 
     lowp   = s->fs  * 10 / 100;
-    highp  = s->fs  * 95 / 100;
+    highp  = s->fs  * 90 / 100;
     clowp  = s->cfs * 10 / 100;
-    chighp = s->cfs * 95 / 100;
+    chighp = s->cfs * 90 / 100;
 
     accy = 0; accu=0; accv=0; accsat =0;
     for (fil = 0; fil < DEPTH; fil++) {

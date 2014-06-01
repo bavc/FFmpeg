@@ -7552,7 +7552,7 @@ Display the average Y value within the input frame. Expressed in range of
 [0-255].
 
 @item YHIGH
-Display the Y value at the 95% percentile within the input frame. Expressed in
+Display the Y value at the 90% percentile within the input frame. Expressed in
 range of [0-255].
 
 @item YMAX
@@ -7572,7 +7572,7 @@ Display the average U value within the input frame. Expressed in range of
 [0-255].
 
 @item UHIGH
-Display the U value at the 95% percentile within the input frame. Expressed in
+Display the U value at the 90% percentile within the input frame. Expressed in
 range of [0-255].
 
 @item UMAX
@@ -7592,7 +7592,7 @@ Display the average V value within the input frame. Expressed in range of
 [0-255].
 
 @item VHIGH
-Display the V value at the 95% percentile within the input frame. Expressed in
+Display the V value at the 90% percentile within the input frame. Expressed in
 range of [0-255].
 
 @item VMAX
@@ -7612,7 +7612,7 @@ Display the average saturation value within the input frame. Expressed in range
 of [0-~181.02].
 
 @item SATHIGH
-Display the saturation value at the 95% percentile within the input frame.
+Display the saturation value at the 90% percentile within the input frame.
 Expressed in range of [0-~181.02].
 
 @item SATMAX
