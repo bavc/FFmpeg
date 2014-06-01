@@ -51,9 +51,9 @@ typedef struct {
     char *vrep_line;
     uint8_t rgba_color[4];
     int yuv_color[3];
-} signalstatsContext;
+} SignalstatsContext;
 
-#define OFFSET(x) offsetof(signalstatsContext, x)
+#define OFFSET(x) offsetof(SignalstatsContext, x)
 #define FLAGS AV_OPT_FLAG_FILTERING_PARAM|AV_OPT_FLAG_VIDEO_PARAM
 
 static const AVOption signalstats_options[] = {
@@ -78,31 +78,31 @@ AVFILTER_DEFINE_CLASS(signalstats);
 static av_cold int init(AVFilterContext *ctx)
 {
     uint8_t r, g, b;
-    signalstatsContext *signalstats = ctx->priv;
+    SignalstatsContext *s = ctx->priv;
 
-    if (signalstats->filename)
-        signalstats->fh = fopen(signalstats->filename, "w");
+    if (s->filename)
+        s->fh = fopen(s->filename, "w");
 
-    if (signalstats->outfilter != FILTER_NONE)
-        signalstats->filters |= 1 << signalstats->outfilter;
+    if (s->outfilter != FILTER_NONE)
+        s->filters |= 1 << s->outfilter;
 
-    r = signalstats->rgba_color[0];
-    g = signalstats->rgba_color[1];
-    b = signalstats->rgba_color[2];
-    signalstats->yuv_color[0] = (( 66*r + 129*g +  25*b + (1<<7)) >> 8) +  16;
-    signalstats->yuv_color[1] = ((-38*r + -74*g + 112*b + (1<<7)) >> 8) + 128;
-    signalstats->yuv_color[2] = ((112*r + -94*g + -18*b + (1<<7)) >> 8) + 128;
+    r = s->rgba_color[0];
+    g = s->rgba_color[1];
+    b = s->rgba_color[2];
+    s->yuv_color[0] = (( 66*r + 129*g +  25*b + (1<<7)) >> 8) +  16;
+    s->yuv_color[1] = ((-38*r + -74*g + 112*b + (1<<7)) >> 8) + 128;
+    s->yuv_color[2] = ((112*r + -94*g + -18*b + (1<<7)) >> 8) + 128;
     return 0;
 }
 
 static av_cold void uninit(AVFilterContext *ctx)
 {
-    signalstatsContext *signalstats = ctx->priv;
-    if (signalstats->fh)
-        fclose(signalstats->fh);
-    av_frame_free(&signalstats->frame_prev);
+    SignalstatsContext *s = ctx->priv;
+    if (s->fh)
+        fclose(s->fh);
+    av_frame_free(&s->frame_prev);
 
-    av_freep(&signalstats->vrep_line);
+    av_freep(&s->vrep_line);
 }
 
 static int query_formats(AVFilterContext *ctx)
@@ -120,53 +120,53 @@ static int query_formats(AVFilterContext *ctx)
 static int config_props(AVFilterLink *outlink)
 {
     AVFilterContext *ctx = outlink->src;
-    signalstatsContext *signalstats = ctx->priv;
+    SignalstatsContext *s = ctx->priv;
     AVFilterLink *inlink = outlink->src->inputs[0];
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(outlink->format);
-    signalstats->hsub = desc->log2_chroma_w;
-    signalstats->vsub = desc->log2_chroma_h;
+    s->hsub = desc->log2_chroma_w;
+    s->vsub = desc->log2_chroma_h;
 
     outlink->w = inlink->w;
     outlink->h = inlink->h;
 
-    signalstats->chromaw = FF_CEIL_RSHIFT(inlink->w, signalstats->hsub);
-    signalstats->chromah = FF_CEIL_RSHIFT(inlink->h, signalstats->vsub);
+    s->chromaw = FF_CEIL_RSHIFT(inlink->w, s->hsub);
+    s->chromah = FF_CEIL_RSHIFT(inlink->h, s->vsub);
 
-    signalstats->fs = inlink->w * inlink->h;
-    signalstats->cfs = signalstats->chromaw * signalstats->chromah;
+    s->fs = inlink->w * inlink->h;
+    s->cfs = s->chromaw * s->chromah;
 
-    if (signalstats->filters & 1<<FILTER_VREP) {
-        signalstats->vrep_line = av_malloc(inlink->h * sizeof(*signalstats->vrep_line));
-        if (!signalstats->vrep_line)
+    if (s->filters & 1<<FILTER_VREP) {
+        s->vrep_line = av_malloc(inlink->h * sizeof(*s->vrep_line));
+        if (!s->vrep_line)
             return AVERROR(ENOMEM);
     }
 
     return 0;
 }
 
-static void burn_frame(signalstatsContext *signalstats, AVFrame *f, int x, int y)
+static void burn_frame(SignalstatsContext *s, AVFrame *f, int x, int y)
 {
-    const int chromax = FF_CEIL_RSHIFT(x, signalstats->hsub);
-    const int chromay = FF_CEIL_RSHIFT(y, signalstats->vsub);
-    f->data[0][y       * f->linesize[0] +       x] = signalstats->yuv_color[0];
-    f->data[1][chromay * f->linesize[1] + chromax] = signalstats->yuv_color[1];
-    f->data[2][chromay * f->linesize[2] + chromax] = signalstats->yuv_color[2];
+    const int chromax = FF_CEIL_RSHIFT(x, s->hsub);
+    const int chromay = FF_CEIL_RSHIFT(y, s->vsub);
+    f->data[0][y       * f->linesize[0] +       x] = s->yuv_color[0];
+    f->data[1][chromay * f->linesize[1] + chromax] = s->yuv_color[1];
+    f->data[2][chromay * f->linesize[2] + chromax] = s->yuv_color[2];
 }
 
-static void filter_init_brng(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
+static void filter_init_brng(SignalstatsContext *s, const AVFrame *p, int w, int h)
 {
 }
 
-static int filter_brng(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h)
+static int filter_brng(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
-    const int yc = FF_CEIL_RSHIFT(y, signalstats->vsub);
+    const int yc = FF_CEIL_RSHIFT(y, s->vsub);
     const uint8_t *pluma    = &in->data[0][y  * in->linesize[0]];
     const uint8_t *pchromau = &in->data[1][yc * in->linesize[1]];
     const uint8_t *pchromav = &in->data[2][yc * in->linesize[2]];
 
     for (x = 0; x < w; x++) {
-        const int xc = FF_CEIL_RSHIFT(x, signalstats->hsub);
+        const int xc = FF_CEIL_RSHIFT(x, s->hsub);
         const int luma    = pluma[x];
         const int chromau = pchromau[xc];
         const int chromav = pchromav[xc];
@@ -175,12 +175,12 @@ static int filter_brng(signalstatsContext *signalstats, const AVFrame *in, AVFra
                          chromav < 16 || chromav > 240;
         score += filt;
         if (out && filt)
-            burn_frame(signalstats, out, x, y);
+            burn_frame(s, out, x, y);
     }
     return score;
 }
 
-static void filter_init_tout(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
+static void filter_init_tout(SignalstatsContext *s, const AVFrame *p, int w, int h)
 {
 }
 
@@ -189,7 +189,7 @@ static int filter_tout_outlier(uint8_t x, uint8_t y, uint8_t z)
     return ((abs(x - y) + abs (z - y)) / 2) - abs(z - x) > 4; // make 4 configurable?
 }
 
-static int filter_tout(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h)
+static int filter_tout(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     const uint8_t *p = in->data[0];
     int lw = in->linesize[0];
@@ -213,14 +213,14 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
             filt = FILTER3(2) && FILTER3(1);
             score += filt;
             if (filt && out)
-                burn_frame(signalstats, out, x, y);
+                burn_frame(s, out, x, y);
         }
     } else {
         for (x = 1; x < w - 1; x++) {
             filt = FILTER3(1);
             score += filt;
             if (filt && out)
-                burn_frame(signalstats, out, x, y);
+                burn_frame(s, out, x, y);
         }
     }
     return score;
@@ -228,7 +228,7 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
 
 #define VREP_START 4
 
-static void filter_init_vrep(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
+static void filter_init_vrep(SignalstatsContext *s, const AVFrame *p, int w, int h)
 {
     int i, y;
     int lw = p->linesize[0];
@@ -242,11 +242,11 @@ static void filter_init_vrep(signalstatsContext *signalstats, const AVFrame *p, 
             totdiff += abs(p->data[0][y2lw + i] - p->data[0][ylw + i]);
 
         /* this value should be definable */
-        signalstats->vrep_line[y] = totdiff < w;
+        s->vrep_line[y] = totdiff < w;
     }
 }
 
-static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h)
+static int filter_vrep(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h)
 {
     int x, score = 0;
 
@@ -254,10 +254,10 @@ static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFra
         return 0;
 
     for (x = 0; x < w; x++) {
-        if (signalstats->vrep_line[y]) {
+        if (s->vrep_line[y]) {
             score++;
             if (out)
-                burn_frame(signalstats, out, x, y);
+                burn_frame(s, out, x, y);
         }
     }
     return score;
@@ -265,13 +265,13 @@ static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFra
 
 static const char *const filter_metanames[] = { "TOUT", "VREP", "BRNG", NULL };
 
-static int (*filter_call[FILT_NUMB])(signalstatsContext *signalstats, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
+static int (*filter_call[FILT_NUMB])(SignalstatsContext *s, const AVFrame *in, AVFrame *out, int y, int w, int h) = {
     filter_tout,
     filter_vrep,
     filter_brng,
 };
 
-static void (*filter_init[FILT_NUMB])(signalstatsContext *signalstats, const AVFrame *p,  int w, int h) = {
+static void (*filter_init[FILT_NUMB])(SignalstatsContext *s, const AVFrame *p,  int w, int h) = {
     filter_init_tout,
     filter_init_vrep,
     filter_init_brng,
@@ -281,7 +281,7 @@ static void (*filter_init[FILT_NUMB])(signalstatsContext *signalstats, const AVF
 
 static int filter_frame(AVFilterLink *link, AVFrame *in)
 {
-    signalstatsContext *signalstats = link->dst->priv;
+    SignalstatsContext *s = link->dst->priv;
     AVFilterLink *outlink = link->dst->outputs[0];
     AVFrame *out = in;
     int i, j;
@@ -312,17 +312,17 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int filtot[FILT_NUMB] = {0};
     AVFrame *prev;
 
-    if (!signalstats->frame_prev)
-        signalstats->frame_prev = av_frame_clone(in);
+    if (!s->frame_prev)
+        s->frame_prev = av_frame_clone(in);
     
-    prev = signalstats->frame_prev;
+    prev = s->frame_prev;
 
-    if (signalstats->outfilter != FILTER_NONE)
+    if (s->outfilter != FILTER_NONE)
         out = av_frame_clone(in);
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if (signalstats->filters & 1<<fil)
-            filter_init[fil](signalstats, in, link->w, link->h);
+        if (s->filters & 1<<fil)
+            filter_init[fil](s, in, link->w, link->h);
     }
 
     // Calculate luma histogram and difference with previous frame or field.
@@ -362,8 +362,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     }
 
     // Calculate chroma histogram and difference with previous frame or field.
-    for (j = 0; j < signalstats->chromah; j++) {
-        for (i = 0; i < signalstats->chromaw; i++) {
+    for (j = 0; j < s->chromah; j++) {
+        for (i = 0; i < s->chromaw; i++) {
             yuvu = in->data[1][cw+i];
             yuvv = in->data[2][cw+i];
             histu[yuvu]++;
@@ -383,9 +383,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     for (j = 0; j < link->h; j++) {
         for (fil = 0; fil < FILT_NUMB; fil ++) {
-            if (signalstats->filters & 1<<fil) {
-                AVFrame *dbg = out != in && signalstats->outfilter == fil ? out : NULL;
-                filtot[fil] += filter_call[fil](signalstats, in, dbg, j, link->w, link->h);
+            if (s->filters & 1<<fil) {
+                AVFrame *dbg = out != in && s->outfilter == fil ? out : NULL;
+                filtot[fil] += filter_call[fil](s, in, dbg, j, link->w, link->h);
             }
         }
     }
@@ -393,10 +393,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     // find low / high based on histogram percentile
     // these only need to be calculated once.
 
-    lowp   = signalstats->fs  * 10 / 100;
-    highp  = signalstats->fs  * 95 / 100;
-    clowp  = signalstats->cfs * 10 / 100;
-    chighp = signalstats->cfs * 95 / 100;
+    lowp   = s->fs  * 10 / 100;
+    highp  = s->fs  * 95 / 100;
+    clowp  = s->cfs * 10 / 100;
+    chighp = s->cfs * 95 / 100;
 
     accy = 0; accu=0; accv=0; accsat =0;
     for (fil = 0; fil < DEPTH; fil++) {
@@ -440,15 +440,15 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         tothue += histhue[fil] * fil;
         acchue += histhue[fil];
         
-        if (medhue == -1 && acchue > signalstats->cfs / 2) medhue = fil;
+        if (medhue == -1 && acchue > s->cfs / 2) medhue = fil;
         if (histhue[fil] > maxhue ) {
             maxhue = histhue[fil];
             modhue = fil;
         }
     }
 
-    av_frame_free(&signalstats->frame_prev);
-    signalstats->frame_prev = av_frame_clone(in);
+    av_frame_free(&s->frame_prev);
+    s->frame_prev = av_frame_clone(in);
 
 #define SET_META(key, fmt, val) do {                                \
     snprintf(metabuf, sizeof(metabuf), fmt, val);                   \
@@ -457,42 +457,42 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     SET_META("YMIN",  "%d", miny);
     SET_META("YLOW",  "%d", lowy);
-    SET_META("YAVG",  "%g", 1.0 * toty / signalstats->fs);
+    SET_META("YAVG",  "%g", 1.0 * toty / s->fs);
     SET_META("YHIGH", "%d", highy);
     SET_META("YMAX",  "%d", maxy);
     
     SET_META("UMIN",  "%d", minu);
     SET_META("ULOW",  "%d", lowu);
-    SET_META("UAVG",  "%g", 1.0 * totu / signalstats->cfs);
+    SET_META("UAVG",  "%g", 1.0 * totu / s->cfs);
     SET_META("UHIGH", "%d", highu);
     SET_META("UMAX",  "%d", maxu);
     
     SET_META("VMIN",  "%d", minv);
     SET_META("VLOW",  "%d", lowv);
-    SET_META("VAVG",  "%g", 1.0 * totv / signalstats->cfs);
+    SET_META("VAVG",  "%g", 1.0 * totv / s->cfs);
     SET_META("VHIGH", "%d", highv);
     SET_META("VMAX",  "%d", maxv);
     
     SET_META("SATMIN", "%d", minsat);
     SET_META("SATLOW", "%d", lowsat);
-    SET_META("SATAVG", "%g", 1.0 * totsat / signalstats->cfs);
+    SET_META("SATAVG", "%g", 1.0 * totsat / s->cfs);
     SET_META("SATHIGH", "%d", highsat);
     SET_META("SATMAX", "%d", maxsat);
     
     SET_META("HUEMOD","%d",modhue);
     SET_META("HUEMED","%d",medhue);
-    SET_META("HUEAVG","%g",1.0 * tothue / signalstats->cfs);
+    SET_META("HUEAVG","%g",1.0 * tothue / s->cfs);
 
-    SET_META("YDIF",  "%g", 1.0 * dify / signalstats->fs);
-    SET_META("UDIF",  "%g", 1.0 * difu / signalstats->cfs);
-    SET_META("VDIF",  "%g", 1.0 * difv / signalstats->cfs);
-    SET_META("YDIF1", "%g", 1.0 * dify1 / (signalstats->fs/2));
-    SET_META("YDIF2", "%g", 1.0 * dify2 / (signalstats->fs/2));
+    SET_META("YDIF",  "%g", 1.0 * dify / s->fs);
+    SET_META("UDIF",  "%g", 1.0 * difu / s->cfs);
+    SET_META("VDIF",  "%g", 1.0 * difv / s->cfs);
+    SET_META("YDIF1", "%g", 1.0 * dify1 / (s->fs/2));
+    SET_META("YDIF2", "%g", 1.0 * dify2 / (s->fs/2));
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
-        if (signalstats->filters & 1<<fil) {
+        if (s->filters & 1<<fil) {
             char metaname[128];
-            snprintf(metabuf,  sizeof(metabuf),  "%g", 1.0 * filtot[fil] / signalstats->fs);
+            snprintf(metabuf,  sizeof(metabuf),  "%g", 1.0 * filtot[fil] / s->fs);
             snprintf(metaname, sizeof(metaname), "lavfi.values.%s", filter_metanames[fil]);
             av_dict_set(&out->metadata, metaname, metabuf, 0);
         }
@@ -528,7 +528,7 @@ AVFilter ff_vf_signalstats = {
     .init          = init,
     .uninit        = uninit,
     .query_formats = query_formats,
-    .priv_size     = sizeof(signalstatsContext),
+    .priv_size     = sizeof(SignalstatsContext),
     .inputs        = signalstats_inputs,
     .outputs       = signalstats_outputs,
     .priv_class    = &signalstats_class,
