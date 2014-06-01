@@ -7528,6 +7528,9 @@ Output video with the specified type of pixel highlighted. It accepts the follow
 @item vrep
 @item brng
 @end table
+
+@item color, c
+Set the highlight color.
 @end table
 
 @subsection Examples

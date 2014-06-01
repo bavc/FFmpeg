@@ -49,6 +49,8 @@ typedef struct {
     int filters;
     AVFrame *frame_prev;
     char *vrep_line;
+    uint8_t rgba_color[4];
+    int yuv_color[3];
 } signalstatsContext;
 
 #define OFFSET(x) offsetof(signalstatsContext, x)
@@ -65,6 +67,8 @@ static const AVOption signalstats_options[] = {
         {"tout", "highlight pixels that depict temporal outliers", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_TOUT},          0, 0, FLAGS, "filters"},
         {"vrep", "highlight video lines that depict vertical line repitition", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_VREP},          0, 0, FLAGS, "filters"},
         {"brng", "highlight pixels that are outside of broadcast range", 0, AV_OPT_TYPE_CONST, {.i64=1<<FILTER_BRNG},         0, 0, FLAGS, "filters"},
+    {"c",     "set highlight color", OFFSET(rgba_color), AV_OPT_TYPE_COLOR, {.str="white"}, .flags=FLAGS},
+    {"color", "set highlight color", OFFSET(rgba_color), AV_OPT_TYPE_COLOR, {.str="white"}, .flags=FLAGS},
 
     {NULL}
 };
@@ -73,6 +77,7 @@ AVFILTER_DEFINE_CLASS(signalstats);
 
 static av_cold int init(AVFilterContext *ctx)
 {
+    uint8_t r, g, b;
     signalstatsContext *signalstats = ctx->priv;
 
     if (signalstats->filename)
@@ -81,6 +86,12 @@ static av_cold int init(AVFilterContext *ctx)
     if (signalstats->outfilter != FILTER_NONE)
         signalstats->filters |= 1 << signalstats->outfilter;
 
+    r = signalstats->rgba_color[0];
+    g = signalstats->rgba_color[1];
+    b = signalstats->rgba_color[2];
+    signalstats->yuv_color[0] = (( 66*r + 129*g +  25*b + (1<<7)) >> 8) +  16;
+    signalstats->yuv_color[1] = ((-38*r + -74*g + 112*b + (1<<7)) >> 8) + 128;
+    signalstats->yuv_color[2] = ((112*r + -94*g + -18*b + (1<<7)) >> 8) + 128;
     return 0;
 }
 
@@ -133,11 +144,14 @@ static int config_props(AVFilterLink *outlink)
     return 0;
 }
 
-static void burn_frame(AVFrame *f, int x, int y)
+static void burn_frame(signalstatsContext *signalstats, AVFrame *f, int x, int y)
 {
-    f->data[0][y * f->linesize[0] + x] = 235;
+    const int chromax = FF_CEIL_RSHIFT(x, signalstats->hsub);
+    const int chromay = FF_CEIL_RSHIFT(y, signalstats->vsub);
+    f->data[0][y       * f->linesize[0] +       x] = signalstats->yuv_color[0];
+    f->data[1][chromay * f->linesize[1] + chromax] = signalstats->yuv_color[1];
+    f->data[2][chromay * f->linesize[2] + chromax] = signalstats->yuv_color[2];
 }
-
 
 static void filter_init_brng(signalstatsContext *signalstats, const AVFrame *p, int w, int h)
 {
@@ -161,7 +175,7 @@ static int filter_brng(signalstatsContext *signalstats, const AVFrame *in, AVFra
                          chromav < 16 || chromav > 240;
         score += filt;
         if (out && filt)
-            burn_frame(out, x, y);
+            burn_frame(signalstats, out, x, y);
     }
     return score;
 }
@@ -199,14 +213,14 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
             filt = FILTER3(2) && FILTER3(1);
             score += filt;
             if (filt && out)
-                burn_frame(out, x, y);
+                burn_frame(signalstats, out, x, y);
         }
     } else {
         for (x = 1; x < w - 1; x++) {
             filt = FILTER3(1);
             score += filt;
             if (filt && out)
-                burn_frame(out, x, y);
+                burn_frame(signalstats, out, x, y);
         }
     }
     return score;
@@ -243,7 +257,7 @@ static int filter_vrep(signalstatsContext *signalstats, const AVFrame *in, AVFra
         if (signalstats->vrep_line[y]) {
             score++;
             if (out)
-                burn_frame(out, x, y);
+                burn_frame(signalstats, out, x, y);
         }
     }
     return score;
