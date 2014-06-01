@@ -174,6 +174,7 @@ OBJS-$(CONFIG_SETSAR_FILTER)                 += vf_aspect.o
 OBJS-$(CONFIG_SETTB_FILTER)                  += settb.o
 OBJS-$(CONFIG_SHOWINFO_FILTER)               += vf_showinfo.o
 OBJS-$(CONFIG_SHUFFLEPLANES_FILTER)          += vf_shuffleplanes.o
+OBJS-$(CONFIG_SIGNALSTATS_FILTER)            += vf_signalstats.o
 OBJS-$(CONFIG_SMARTBLUR_FILTER)              += vf_smartblur.o
 OBJS-$(CONFIG_SPLIT_FILTER)                  += split.o
 OBJS-$(CONFIG_SPP_FILTER)                    += vf_spp.o
@@ -194,9 +195,6 @@ OBJS-$(CONFIG_VIDSTABTRANSFORM_FILTER)       += vidstabutils.o vf_vidstabtransfo
 OBJS-$(CONFIG_VIGNETTE_FILTER)               += vf_vignette.o
 OBJS-$(CONFIG_W3FDIF_FILTER)                 += vf_w3fdif.o
 OBJS-$(CONFIG_YADIF_FILTER)                  += vf_yadif.o
-OBJS-$(CONFIG_WATERMARK_FILTER)              += vf_watermark.o
-OBJS-$(CONFIG_BROADCAST_FILTER)		     += vf_broadcast.o
-OBJS-$(CONFIG_SIGNALSTATS_FILTER)	     += vf_signalstats.o
 OBJS-$(CONFIG_ZMQ_FILTER)                    += f_zmq.o
 
 OBJS-$(CONFIG_CELLAUTO_FILTER)               += vsrc_cellauto.o
