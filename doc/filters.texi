@@ -7687,7 +7687,8 @@ following values:
 @end table
 
 @item color, c
-Set the highlight color for the @option{out} option.
+Set the highlight color for the @option{out} option. The default color is
+yellow.
 @end table
 
 @subsection Examples
