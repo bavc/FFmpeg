@@ -487,7 +487,7 @@ static void encode_block(MpegEncContext *s, int16_t *block, int n)
         put_bits(&s->pb, huff_size_ac[0], huff_code_ac[0]);
 }
 
-void ff_mjpeg_encode_mb(MpegEncContext *s, int16_t block[6][64])
+void ff_mjpeg_encode_mb(MpegEncContext *s, int16_t block[12][64])
 {
     int i;
     if (s->chroma_format == CHROMA_444) {
@@ -538,6 +538,13 @@ static int amv_encode_picture(AVCodecContext *avctx, AVPacket *pkt,
     //CODEC_FLAG_EMU_EDGE have to be cleared
     if(s->avctx->flags & CODEC_FLAG_EMU_EDGE)
         return AVERROR(EINVAL);
+
+    if (avctx->height & 15) {
+        av_log(avctx, AV_LOG_ERROR,
+               "Height must be a multiple of 16, also note, "
+               "if you have a AMV sample thats mod 16 != 0, please contact us\n");
+        return AVERROR(EINVAL);
+    }
 
     pic = av_frame_clone(pic_arg);
     if (!pic)

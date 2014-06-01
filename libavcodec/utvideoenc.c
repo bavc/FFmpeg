@@ -31,6 +31,7 @@
 #include "bytestream.h"
 #include "put_bits.h"
 #include "dsputil.h"
+#include "huffyuvencdsp.h"
 #include "mathops.h"
 #include "utvideo.h"
 #include "huffman.h"
@@ -109,6 +110,7 @@ static av_cold int utvideo_encode_init(AVCodecContext *avctx)
     }
 
     ff_dsputil_init(&c->dsp, avctx);
+    ff_huffyuvencdsp_init(&c->hdsp);
 
     /* Check the prediction method, and error out if unsupported */
     if (avctx->prediction_method < 0 || avctx->prediction_method > 4) {
@@ -312,7 +314,7 @@ static void median_predict(UtvideoContext *c, uint8_t *src, uint8_t *dst, int st
 
     /* Rest of the coded part uses median prediction */
     for (j = 1; j < height; j++) {
-        c->dsp.sub_hfyu_median_prediction(dst, src - stride, src, width, &A, &B);
+        c->hdsp.sub_hfyu_median_pred(dst, src - stride, src, width, &A, &B);
         dst += width;
         src += stride;
     }
@@ -494,7 +496,7 @@ static int encode_plane(AVCodecContext *avctx, uint8_t *src,
          * get the offset in bits and convert to bytes.
          */
         offset += write_huff_codes(dst + sstart * width, c->slice_bits,
-                                   width * (send - sstart), width,
+                                   width * height + 4, width,
                                    send - sstart, he) >> 3;
 
         slice_len = offset - slice_len;
@@ -551,7 +553,7 @@ static int utvideo_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
 
     bytestream2_init_writer(&pb, dst, pkt->size);
 
-    av_fast_padded_malloc(&c->slice_bits, &c->slice_bits_size, width * height);
+    av_fast_padded_malloc(&c->slice_bits, &c->slice_bits_size, width * height + 4);
 
     if (!c->slice_bits) {
         av_log(avctx, AV_LOG_ERROR, "Cannot allocate temporary buffer 2.\n");
@@ -640,6 +642,7 @@ AVCodec ff_utvideo_encoder = {
     .init           = utvideo_encode_init,
     .encode2        = utvideo_encode_frame,
     .close          = utvideo_encode_close,
+    .capabilities   = CODEC_CAP_FRAME_THREADS | CODEC_CAP_INTRA_ONLY,
     .pix_fmts       = (const enum AVPixelFormat[]) {
                           AV_PIX_FMT_RGB24, AV_PIX_FMT_RGBA, AV_PIX_FMT_YUV422P,
                           AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE

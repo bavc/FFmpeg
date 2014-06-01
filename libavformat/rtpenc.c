@@ -119,7 +119,7 @@ static int rtp_write_header(AVFormatContext *s1)
         s->ssrc = av_get_random_seed();
     s->first_packet = 1;
     s->first_rtcp_ntp_time = ff_ntp_time();
-    if (s1->start_time_realtime)
+    if (s1->start_time_realtime != 0  &&  s1->start_time_realtime != AV_NOPTS_VALUE)
         /* Round the NTP time to whole milliseconds. */
         s->first_rtcp_ntp_time = (s1->start_time_realtime / 1000) * 1000 +
                                  NTP_OFFSET_US;
@@ -127,7 +127,7 @@ static int rtp_write_header(AVFormatContext *s1)
     // available range, so that any wraparound doesn't happen immediately.
     // (Immediate wraparound would be an issue for SRTP.)
     if (s->seq < 0) {
-        if (st->codec->flags & CODEC_FLAG_BITEXACT) {
+        if (s1->flags & AVFMT_FLAG_BITEXACT) {
             s->seq = 0;
         } else
             s->seq = av_get_random_seed() & 0x0fff;

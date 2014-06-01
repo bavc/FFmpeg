@@ -80,6 +80,7 @@ void avfilter_register_all(void)
     REGISTER_FILTER(BANDREJECT,     bandreject,     af);
     REGISTER_FILTER(BASS,           bass,           af);
     REGISTER_FILTER(BIQUAD,         biquad,         af);
+    REGISTER_FILTER(BS2B,           bs2b,           af);
     REGISTER_FILTER(CHANNELMAP,     channelmap,     af);
     REGISTER_FILTER(CHANNELSPLIT,   channelsplit,   af);
     REGISTER_FILTER(COMPAND,        compand,        af);
@@ -189,6 +190,7 @@ void avfilter_register_all(void)
     REGISTER_FILTER(SETSAR,         setsar,         vf);
     REGISTER_FILTER(SETTB,          settb,          vf);
     REGISTER_FILTER(SHOWINFO,       showinfo,       vf);
+    REGISTER_FILTER(SHUFFLEPLANES,  shuffleplanes,  vf);
     REGISTER_FILTER(SMARTBLUR,      smartblur,      vf);
     REGISTER_FILTER(SPLIT,          split,          vf);
     REGISTER_FILTER(SPP,            spp,            vf);

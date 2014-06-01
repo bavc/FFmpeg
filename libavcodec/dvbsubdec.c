@@ -18,8 +18,8 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
 #include "avcodec.h"
-#include "dsputil.h"
 #include "get_bits.h"
 #include "bytestream.h"
 #include "libavutil/colorspace.h"
@@ -31,7 +31,7 @@
 #define DVBSUB_DISPLAYDEFINITION_SEGMENT 0x14
 #define DVBSUB_DISPLAY_SEGMENT  0x80
 
-#define cm (ff_cropTbl + MAX_NEG_CROP)
+#define cm (ff_crop_tab + MAX_NEG_CROP)
 
 #ifdef DEBUG
 #if 0
@@ -1394,7 +1394,7 @@ static int dvbsub_display_end_segment(AVCodecContext *avctx, const uint8_t *buf,
     }
 
     if (sub->num_rects > 0){
-        sub->rects = av_mallocz(sizeof(*sub->rects) * sub->num_rects);
+        sub->rects = av_mallocz_array(sizeof(*sub->rects), sub->num_rects);
         for(i=0; i<sub->num_rects; i++)
             sub->rects[i] = av_mallocz(sizeof(*sub->rects[i]));
 

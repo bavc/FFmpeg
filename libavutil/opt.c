@@ -327,6 +327,12 @@ static int set_string_fmt(void *obj, const AVOption *o, const char *val, uint8_t
     min = FFMAX(o->min, -1);
     max = FFMIN(o->max, fmt_nb-1);
 
+    // hack for compatibility with old ffmpeg
+    if(min == 0 && max == 0) {
+        min = -1;
+        max = fmt_nb-1;
+    }
+
     if (fmt < min || fmt > max) {
         av_log(obj, AV_LOG_ERROR,
                "Value %d for parameter '%s' out of %s format range [%d - %d]\n",
@@ -1409,14 +1415,17 @@ void av_opt_free(void *obj)
             av_freep((uint8_t *)obj + o->offset);
 }
 
-int av_opt_set_dict(void *obj, AVDictionary **options)
+int av_opt_set_dict2(void *obj, AVDictionary **options, int search_flags)
 {
     AVDictionaryEntry *t = NULL;
     AVDictionary    *tmp = NULL;
     int ret = 0;
 
+    if (!options)
+        return 0;
+
     while ((t = av_dict_get(*options, "", t, AV_DICT_IGNORE_SUFFIX))) {
-        ret = av_opt_set(obj, t->key, t->value, 0);
+        ret = av_opt_set(obj, t->key, t->value, search_flags);
         if (ret == AVERROR_OPTION_NOT_FOUND)
             av_dict_set(&tmp, t->key, t->value, 0);
         else if (ret < 0) {
@@ -1428,6 +1437,11 @@ int av_opt_set_dict(void *obj, AVDictionary **options)
     av_dict_free(options);
     *options = tmp;
     return ret;
+}
+
+int av_opt_set_dict(void *obj, AVDictionary **options)
+{
+    return av_opt_set_dict2(obj, options, 0);
 }
 
 const AVOption *av_opt_find(void *obj, const char *name, const char *unit,
@@ -1505,6 +1519,7 @@ void *av_opt_ptr(const AVClass *class, void *obj, const char *name)
 
 int av_opt_query_ranges(AVOptionRanges **ranges_arg, void *obj, const char *key, int flags)
 {
+    int ret;
     const AVClass *c = *(AVClass**)obj;
     int (*callback)(AVOptionRanges **, void *obj, const char *key, int flags) = NULL;
 
@@ -1514,7 +1529,13 @@ int av_opt_query_ranges(AVOptionRanges **ranges_arg, void *obj, const char *key,
     if (!callback)
         callback = av_opt_query_ranges_default;
 
-    return callback(ranges_arg, obj, key, flags);
+    ret = callback(ranges_arg, obj, key, flags);
+    if (ret >= 0) {
+        if (!(flags & AV_OPT_MULTI_COMPONENT_RANGE))
+            ret = 1;
+        (*ranges_arg)->nb_components = ret;
+    }
+    return ret;
 }
 
 int av_opt_query_ranges_default(AVOptionRanges **ranges_arg, void *obj, const char *key, int flags)
@@ -1535,6 +1556,7 @@ int av_opt_query_ranges_default(AVOptionRanges **ranges_arg, void *obj, const ch
     ranges->range = range_array;
     ranges->range[0] = range;
     ranges->nb_ranges = 1;
+    ranges->nb_components = 1;
     range->is_range = 1;
     range->value_min = field->min;
     range->value_max = field->max;
@@ -1578,7 +1600,7 @@ int av_opt_query_ranges_default(AVOptionRanges **ranges_arg, void *obj, const ch
     }
 
     *ranges_arg = ranges;
-    return 0;
+    return 1;
 fail:
     av_free(ranges);
     av_free(range);
@@ -1591,10 +1613,15 @@ void av_opt_freep_ranges(AVOptionRanges **rangesp)
     int i;
     AVOptionRanges *ranges = *rangesp;
 
-    for (i = 0; i < ranges->nb_ranges; i++) {
+    if (!ranges)
+        return;
+
+    for (i = 0; i < ranges->nb_ranges * ranges->nb_components; i++) {
         AVOptionRange *range = ranges->range[i];
-        av_freep(&range->str);
-        av_freep(&ranges->range[i]);
+        if (range) {
+            av_freep(&range->str);
+            av_freep(&ranges->range[i]);
+        }
     }
     av_freep(&ranges->range);
     av_freep(rangesp);
