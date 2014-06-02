@@ -23,8 +23,6 @@
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "libavcodec/mathops.h"
-#include "libavutil/libm.h"
-#include "libavutil/mathematics.h"
 #include "internal.h"
 
 enum FilterMode {
