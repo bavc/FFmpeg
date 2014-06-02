@@ -187,7 +187,7 @@ filter_tout_outlier(p[(y-j) * lw + x + i], \
 
 #define FILTER3(j) (FILTER(-1, j) && FILTER(0, j) && FILTER(1, j))
 
-    if (y-2 >= 0 && y+2 < h) {
+    if (y - 2 >= 0 && y + 2 < h) {
         for (x = 1; x < w - 1; x++) {
             filt = FILTER3(2) && FILTER3(1);
             score += filt;
@@ -263,24 +263,24 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int i, j;
     int  w = 0,  cw = 0, // in
         pw = 0, cpw = 0; // prev
-    int yuv,yuvu,yuvv;
+    int yuv, yuvu, yuvv;
     int fil;
     char metabuf[128];
     unsigned int histy[DEPTH] = {0},
                  histu[DEPTH] = {0},
                  histv[DEPTH] = {0},
-    histhue[360] = {0},
-                histsat[DEPTH] = {0}; // limited to 8 bit data.
-    int miny = -1, minu = -1, minv = -1;
-    int maxy = -1, maxu = -1, maxv = -1;
+                 histhue[360] = {0},
+                 histsat[DEPTH] = {0}; // limited to 8 bit data.
+    int miny  = -1, minu  = -1, minv  = -1;
+    int maxy  = -1, maxu  = -1, maxv  = -1;
     int lowy  = -1, lowu  = -1, lowv  = -1;
     int highy = -1, highu = -1, highv = -1;
-    int minsat=-1,maxsat=-1,lowsat=-1,highsat=-1;
+    int minsat = -1, maxsat = -1, lowsat = -1, highsat = -1;
     int lowp, highp, clowp, chighp;
     int accy, accu, accv;
-    int accsat,acchue=0;
-    int medhue,maxhue;
-    int toty = 0, totu = 0, totv = 0,totsat=0;
+    int accsat, acchue=0;
+    int medhue, maxhue;
+    int toty = 0, totu = 0, totv = 0, totsat=0;
     int tothue = 0;
     int dify = 0, difu = 0, difv = 0;
 
@@ -302,11 +302,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     // Calculate luma histogram and difference with previous frame or field.
     for (j = 0; j < link->h; j++) {
         for (i = 0; i < link->w; i++) {
-
             yuv = in->data[0][w + i];
             histy[yuv]++;
             dify += abs(in->data[0][w + i] - prev->data[0][pw + i]);
-
         }
         w  += in->linesize[0];
         pw += prev->linesize[0];
@@ -325,10 +323,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
 
             // int or round?
-            sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128)* (yuvv-128));
+            sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128) * (yuvv-128));
             histsat[sat]++;
             hue = floor((180 / M_PI) * atan2f(yuvu-128, yuvv-128) + 180);
-            histhue[hue] ++;
+            histhue[hue]++;
         }
         cw  += in->linesize[1];
         cpw += prev->linesize[1];
@@ -351,40 +349,37 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     clowp  = s->cfs * 10 / 100;
     chighp = s->cfs * 90 / 100;
 
-    accy = 0; accu=0; accv=0; accsat =0;
+    accy = accu = accv = accsat = 0;
     for (fil = 0; fil < DEPTH; fil++) {
-        if (miny < 0 && histy[fil]) miny = fil;
-        if (minu < 0 && histu[fil]) minu = fil;
-        if (minv < 0 && histv[fil]) minv = fil;
-        if (minsat <0 && histsat[fil]) minsat = fil;
+        if (miny   < 0 && histy[fil])   miny = fil;
+        if (minu   < 0 && histu[fil])   minu = fil;
+        if (minv   < 0 && histv[fil])   minv = fil;
+        if (minsat < 0 && histsat[fil]) minsat = fil;
 
-        if (histy[fil]) maxy = fil;
-        if (histu[fil]) maxu = fil;
-        if (histv[fil]) maxv = fil;
+        if (histy[fil])   maxy   = fil;
+        if (histu[fil])   maxu   = fil;
+        if (histv[fil])   maxv   = fil;
         if (histsat[fil]) maxsat = fil;
 
-
-        toty += histy[fil] * fil;
-        totu += histu[fil] * fil;
-        totv += histv[fil] * fil;
+        toty   += histy[fil]   * fil;
+        totu   += histu[fil]   * fil;
+        totv   += histv[fil]   * fil;
         totsat += histsat[fil] * fil;
 
-        accy += histy[fil];
-        accu += histu[fil];
-        accv += histv[fil];
+        accy   += histy[fil];
+        accu   += histu[fil];
+        accv   += histv[fil];
         accsat += histsat[fil];
 
-        if (lowy == -1 && accy >=  lowp) lowy = fil;
-        if (lowu == -1 && accu >= clowp) lowu = fil;
-        if (lowv == -1 && accv >= clowp) lowv = fil;
+        if (lowy   == -1 && accy   >=  lowp) lowy   = fil;
+        if (lowu   == -1 && accu   >= clowp) lowu   = fil;
+        if (lowv   == -1 && accv   >= clowp) lowv   = fil;
         if (lowsat == -1 && accsat >= clowp) lowsat = fil;
 
-
-        if (highy == -1 && accy >=  highp) highy = fil;
-        if (highu == -1 && accu >= chighp) highu = fil;
-        if (highv == -1 && accv >= chighp) highv = fil;
+        if (highy   == -1 && accy   >=  highp) highy   = fil;
+        if (highu   == -1 && accu   >= chighp) highu   = fil;
+        if (highv   == -1 && accv   >= chighp) highv   = fil;
         if (highsat == -1 && accsat >= chighp) highsat = fil;
-
     }
 
     maxhue = histhue[0];
@@ -393,8 +388,9 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         tothue += histhue[fil] * fil;
         acchue += histhue[fil];
 
-        if (medhue == -1 && acchue > s->cfs / 2) medhue = fil;
-        if (histhue[fil] > maxhue ) {
+        if (medhue == -1 && acchue > s->cfs / 2)
+            medhue = fil;
+        if (histhue[fil] > maxhue) {
             maxhue = histhue[fil];
         }
     }
@@ -407,36 +403,36 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     av_dict_set(&out->metadata, "lavfi.values." key, metabuf, 0);   \
 } while (0)
 
-    SET_META("YMIN",  "%d", miny);
-    SET_META("YLOW",  "%d", lowy);
-    SET_META("YAVG",  "%g", 1.0 * toty / s->fs);
-    SET_META("YHIGH", "%d", highy);
-    SET_META("YMAX",  "%d", maxy);
+    SET_META("YMIN",    "%d", miny);
+    SET_META("YLOW",    "%d", lowy);
+    SET_META("YAVG",    "%g", 1.0 * toty / s->fs);
+    SET_META("YHIGH",   "%d", highy);
+    SET_META("YMAX",    "%d", maxy);
 
-    SET_META("UMIN",  "%d", minu);
-    SET_META("ULOW",  "%d", lowu);
-    SET_META("UAVG",  "%g", 1.0 * totu / s->cfs);
-    SET_META("UHIGH", "%d", highu);
-    SET_META("UMAX",  "%d", maxu);
+    SET_META("UMIN",    "%d", minu);
+    SET_META("ULOW",    "%d", lowu);
+    SET_META("UAVG",    "%g", 1.0 * totu / s->cfs);
+    SET_META("UHIGH",   "%d", highu);
+    SET_META("UMAX",    "%d", maxu);
 
-    SET_META("VMIN",  "%d", minv);
-    SET_META("VLOW",  "%d", lowv);
-    SET_META("VAVG",  "%g", 1.0 * totv / s->cfs);
-    SET_META("VHIGH", "%d", highv);
-    SET_META("VMAX",  "%d", maxv);
+    SET_META("VMIN",    "%d", minv);
+    SET_META("VLOW",    "%d", lowv);
+    SET_META("VAVG",    "%g", 1.0 * totv / s->cfs);
+    SET_META("VHIGH",   "%d", highv);
+    SET_META("VMAX",    "%d", maxv);
 
-    SET_META("SATMIN", "%d", minsat);
-    SET_META("SATLOW", "%d", lowsat);
-    SET_META("SATAVG", "%g", 1.0 * totsat / s->cfs);
+    SET_META("SATMIN",  "%d", minsat);
+    SET_META("SATLOW",  "%d", lowsat);
+    SET_META("SATAVG",  "%g", 1.0 * totsat / s->cfs);
     SET_META("SATHIGH", "%d", highsat);
-    SET_META("SATMAX", "%d", maxsat);
+    SET_META("SATMAX",  "%d", maxsat);
 
-    SET_META("HUEMED","%d",medhue);
-    SET_META("HUEAVG","%g",1.0 * tothue / s->cfs);
+    SET_META("HUEMED",  "%d", medhue);
+    SET_META("HUEAVG",  "%g", 1.0 * tothue / s->cfs);
 
-    SET_META("YDIF",  "%g", 1.0 * dify / s->fs);
-    SET_META("UDIF",  "%g", 1.0 * difu / s->cfs);
-    SET_META("VDIF",  "%g", 1.0 * difv / s->cfs);
+    SET_META("YDIF",    "%g", 1.0 * dify / s->fs);
+    SET_META("UDIF",    "%g", 1.0 * difu / s->cfs);
+    SET_META("VDIF",    "%g", 1.0 * difv / s->cfs);
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (s->filters & 1<<fil) {
