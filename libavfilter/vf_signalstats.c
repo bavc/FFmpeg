@@ -291,7 +291,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int lowp, highp, clowp, chighp;
     int accy, accu, accv;
     int accsat,acchue=0;
-    int medhue,modhue,maxhue;
+    int medhue,maxhue;
     int toty = 0, totu = 0, totv = 0,totsat=0;
     int tothue = 0;
     int dify = 0, difu = 0, difv = 0;
@@ -399,7 +399,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
     }
 
-    maxhue = histhue[0]; modhue = 0;
+    maxhue = histhue[0];
     medhue = -1;
     for (fil = 0; fil < 360; fil++) {
         tothue += histhue[fil] * fil;
@@ -408,7 +408,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (medhue == -1 && acchue > s->cfs / 2) medhue = fil;
         if (histhue[fil] > maxhue ) {
             maxhue = histhue[fil];
-            modhue = fil;
         }
     }
 
@@ -444,7 +443,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("SATHIGH", "%d", highsat);
     SET_META("SATMAX", "%d", maxsat);
 
-    SET_META("HUEMOD","%d",modhue);
     SET_META("HUEMED","%d",medhue);
     SET_META("HUEAVG","%g",1.0 * tothue / s->cfs);
 

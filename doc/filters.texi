@@ -7619,10 +7619,6 @@ Expressed in range of [0-~181.02].
 Display the maximum saturation value contained within the input frame.
 Expressed in range of [0-~181.02].
 
-@item HUEMOD
-Display the mode value for hue within the input frame. Expressed in range of
-[0-360].
-
 @item HUEMED
 Display the median value for hue within the input frame. Expressed in range of
 [0-360].
