@@ -7642,15 +7642,6 @@ frame and the previous input frame.
 @item VDIF
 Display a quantification of the visual change on the V plane between the input
 frame and the previous input frame.
-
-@item YDIF1
-Depending on the field order, this filter performs a difference between the
-previous odd field and the current even field (or the previous even field and
-the current odd field).
-
-@item YDIF2
-Display a quantification of the visual difference between the current odd field
-and current even field.
 @end table
 
 The filter accepts the following options:

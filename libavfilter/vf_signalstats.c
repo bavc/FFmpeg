@@ -295,7 +295,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int toty = 0, totu = 0, totv = 0,totsat=0;
     int tothue = 0;
     int dify = 0, difu = 0, difv = 0;
-    int dify1 = 0, dify2 = 0;
 
     int filtot[FILT_NUMB] = {0};
     AVFrame *prev;
@@ -318,29 +317,8 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
             yuv = in->data[0][w + i];
             histy[yuv]++;
-
             dify += abs(in->data[0][w + i] - prev->data[0][pw + i]);
 
-            if (!(j & 1)) { // every second line
-
-                // get bottom field
-                // should check that we are not currently at the bottom line.
-                // but who has heard of an interlaced file with odd vertical dimentions?
-                int yuvi = in->data[0][w + in->linesize[0] + i];
-
-                // dif2 = diff bottom field with top field
-
-                dify2 += abs(yuv - yuvi);
-
-                if (in->top_field_first) {
-                    // dif1 = diff top field with prev bottom field
-                    dify1 += abs(yuv - prev->data[0][pw + prev->linesize[0] + i]);
-                } else {
-                    // dif1 = diff bottom field with prev top field
-                    dify1 += abs(yuvi - prev->data[0][pw + i]);
-                }
-
-            }
         }
         w  += in->linesize[0];
         pw += prev->linesize[0];
@@ -473,8 +451,6 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     SET_META("YDIF",  "%g", 1.0 * dify / s->fs);
     SET_META("UDIF",  "%g", 1.0 * difu / s->cfs);
     SET_META("VDIF",  "%g", 1.0 * difv / s->cfs);
-    SET_META("YDIF1", "%g", 1.0 * dify1 / (s->fs/2));
-    SET_META("YDIF2", "%g", 1.0 * dify2 / (s->fs/2));
 
     for (fil = 0; fil < FILT_NUMB; fil ++) {
         if (s->filters & 1<<fil) {
