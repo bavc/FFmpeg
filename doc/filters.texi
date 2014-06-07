@@ -7628,16 +7628,19 @@ Display the average value for hue within the input frame. Expressed in range of
 [0-360].
 
 @item YDIF
-Display a quantification of the visual change on the Y plane between the input
-frame and the previous input frame.
+Display the average of sample value difference between all values of the Y
+plane in the current frame and corresponding values of the previous input frame.
+Expressed in range of [0-255].
 
 @item UDIF
-Display a quantification of the visual change on the U plane between the input
-frame and the previous input frame.
+Display the average of sample value difference between all values of the U
+plane in the current frame and corresponding values of the previous input frame.
+Expressed in range of [0-255].
 
 @item VDIF
-Display a quantification of the visual change on the V plane between the input
-frame and the previous input frame.
+Display the average of sample value difference between all values of the V
+plane in the current frame and corresponding values of the previous input frame.
+Expressed in range of [0-255].
 @end table
 
 The filter accepts the following options:
