@@ -278,7 +278,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     int minsat = -1, maxsat = -1, lowsat = -1, highsat = -1;
     int lowp, highp, clowp, chighp;
     int accy, accu, accv;
-    int accsat, acchue=0;
+    int accsat, acchue = 0;
     int medhue, maxhue;
     int toty = 0, totu = 0, totv = 0, totsat=0;
     int tothue = 0;
