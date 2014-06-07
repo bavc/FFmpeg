@@ -178,7 +178,7 @@ static int filter_tout(SignalstatsContext *s, const AVFrame *in, AVFrame *out, i
         return 0;
 
     // detect two pixels above and below (to eliminate interlace artefacts)
-    // should check that video format is infact interlace.
+    // should check that video format is infact interlaced.
 
 #define FILTER(i, j) \
 filter_tout_outlier(p[(y-j) * lw + x + i], \
