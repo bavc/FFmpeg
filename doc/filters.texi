@@ -7647,7 +7647,12 @@ The filter accepts the following options:
 
 @table @option
 @item stat
-Specify an additional form of image analysis. It accepts the following values:
+@item out
+
+@option{stat} specify an additional form of image analysis.
+@option{out} output video with the specified type of pixel highlighted.
+
+Both options accept the following values:
 
 @table @samp
 @item tout
@@ -7664,16 +7669,6 @@ analog source it can indicate concealment from a dropout compensator.
 
 @item brng
 Identify pixels that fall outside of legal broadcast range.
-@end table
-
-@item out
-Output video with the specified type of pixel highlighted. It accepts the
-following values:
-
-@table @samp
-@item tout
-@item vrep
-@item brng
 @end table
 
 @item color, c
