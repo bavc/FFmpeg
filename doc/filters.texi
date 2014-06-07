@@ -7684,13 +7684,13 @@ yellow.
 @item
 Output data of various video metrics:
 @example
-ffprobe -f lavfi movie=example.mov,signalstats="stat=tout+vrep+rang" -show_frames
+ffprobe -f lavfi movie=example.mov,signalstats="stat=tout+vrep+brng" -show_frames
 @end example
 
 @item
 Output specific data about the minimum and maximum values of the Y plane per frame:
 @example
-ffprobe -f lavfi movie=example.mov,signalstats -show_entries frame_tags=lavfi.values.YMAX,lavfi.values.YMIN
+ffprobe -f lavfi movie=example.mov,signalstats -show_entries frame_tags=lavfi.signalstats.YMAX,lavfi.signalstats.YMIN
 @end example
 
 @item
