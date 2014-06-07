@@ -35,12 +35,12 @@ enum FilterMode {
 
 typedef struct {
     const AVClass *class;
-    int chromah;
-    int chromaw;
-    int hsub;
-    int vsub;
-    int fs;
-    int cfs;
+    int chromah;    // height of chroma plane
+    int chromaw;    // width of chroma plane
+    int hsub;       // horizontal subsampling
+    int vsub;       // vertical subsampling
+    int fs;         // pixel count per frame
+    int cfs;        // pixel count per frame of chroma planes
     enum FilterMode outfilter;
     int filters;
     AVFrame *frame_prev;
