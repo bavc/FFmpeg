@@ -400,7 +400,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
 
 #define SET_META(key, fmt, val) do {                                \
     snprintf(metabuf, sizeof(metabuf), fmt, val);                   \
-    av_dict_set(&out->metadata, "lavfi.values." key, metabuf, 0);   \
+    av_dict_set(&out->metadata, "lavfi.signalstats." key, metabuf, 0);   \
 } while (0)
 
     SET_META("YMIN",    "%d", miny);
@@ -438,7 +438,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
         if (s->filters & 1<<fil) {
             char metaname[128];
             snprintf(metabuf,  sizeof(metabuf),  "%g", 1.0 * filtot[fil] / s->fs);
-            snprintf(metaname, sizeof(metaname), "lavfi.values.%s", filters_def[fil].name);
+            snprintf(metaname, sizeof(metaname), "lavfi.signalstats.%s", filters_def[fil].name);
             av_dict_set(&out->metadata, metaname, metabuf, 0);
         }
     }
