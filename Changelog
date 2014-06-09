@@ -27,6 +27,7 @@ version <next>:
 - display matrix export and rotation api
 - WebVTT encoder
 - showcqt multimedia filter
+- signalstats filter
 
 
 version 2.2:
