@@ -22,7 +22,6 @@
 
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
-#include "libavcodec/mathops.h"
 #include "internal.h"
 
 enum FilterMode {
@@ -323,7 +322,7 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
             difv += abs(in->data[2][cw+i] - prev->data[2][cpw+i]);
 
             // int or round?
-            sat = ff_sqrt((yuvu-128) * (yuvu-128) + (yuvv-128) * (yuvv-128));
+            sat = hypot(yuvu - 128, yuvv - 128);
             histsat[sat]++;
             hue = floor((180 / M_PI) * atan2f(yuvu-128, yuvv-128) + 180);
             histhue[hue]++;
