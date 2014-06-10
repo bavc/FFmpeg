@@ -343,10 +343,10 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     // find low / high based on histogram percentile
     // these only need to be calculated once.
 
-    lowp   = s->fs  * 10 / 100;
-    highp  = s->fs  * 90 / 100;
-    clowp  = s->cfs * 10 / 100;
-    chighp = s->cfs * 90 / 100;
+    lowp   = lrint(s->fs  * 10 / 100.);
+    highp  = lrint(s->fs  * 90 / 100.);
+    clowp  = lrint(s->cfs * 10 / 100.);
+    chighp = lrint(s->cfs * 90 / 100.);
 
     accy = accu = accv = accsat = 0;
     for (fil = 0; fil < DEPTH; fil++) {
